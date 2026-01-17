@@ -135,13 +135,19 @@ router.post('/verizon-rates', upload.single('file'), async (req: AuthRequest, re
     }
 
     // Parse header to find column indices
-    const headers = data[headerRowIndex].map((h: any) => String(h || '').toLowerCase());
-    const originCol = headers.findIndex((h: string) => h.includes('originating'));
-    const destCol = headers.findIndex((h: string) => h === 'destination' || h.includes('destination'));
-    const callTypeCol = headers.findIndex((h: string) => h.includes('call type'));
-    const priceCol = headers.findIndex((h: string) => h === 'price' || h.includes('price'));
-    const effectiveDateCol = headers.findIndex((h: string) => h.includes('effective'));
-    const endDateCol = headers.findIndex((h: string) => h.includes('end date'));
+    const rawHeaders = data[headerRowIndex] || [];
+    const headers: string[] = [];
+    for (let i = 0; i < rawHeaders.length; i++) {
+      const h = rawHeaders[i];
+      headers[i] = h != null ? String(h).toLowerCase().trim() : '';
+    }
+
+    const originCol = headers.findIndex((h) => h && h.includes('originating'));
+    const destCol = headers.findIndex((h) => h && (h === 'destination' || h.includes('destination')));
+    const callTypeCol = headers.findIndex((h) => h && h.includes('call type'));
+    const priceCol = headers.findIndex((h) => h && (h === 'price' || h.includes('price')));
+    const effectiveDateCol = headers.findIndex((h) => h && h.includes('effective'));
+    const endDateCol = headers.findIndex((h) => h && h.includes('end date'));
 
     if (originCol === -1 || destCol === -1 || priceCol === -1) {
       fs.unlinkSync(filePath);
