@@ -5,6 +5,7 @@ export interface AuthRequest extends Request {
   user?: {
     id: number;
     email: string;
+    role: string;
   };
 }
 
@@ -29,7 +30,19 @@ export function authenticateToken(
       return;
     }
 
-    req.user = decoded as { id: number; email: string };
+    req.user = decoded as { id: number; email: string; role: string };
     next();
   });
+}
+
+export function requireAdmin(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): void {
+  if (!req.user || req.user.role !== 'admin') {
+    res.status(403).json({ error: 'Admin access required' });
+    return;
+  }
+  next();
 }

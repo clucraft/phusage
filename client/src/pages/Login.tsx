@@ -1,9 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { authApi } from '../services/api';
 import { useTheme } from '../hooks/useTheme';
 
+interface User {
+  id: number;
+  email: string;
+  name: string;
+  role: string;
+}
+
 interface LoginProps {
-  onLogin: (token: string) => void;
+  onLogin: (token: string, user: User) => void;
 }
 
 export default function Login({ onLogin }: LoginProps) {
@@ -13,7 +20,23 @@ export default function Login({ onLogin }: LoginProps) {
   const [isRegister, setIsRegister] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [registrationEnabled, setRegistrationEnabled] = useState(true);
+  const [isFirstUser, setIsFirstUser] = useState(false);
   const { theme, toggleTheme } = useTheme();
+
+  useEffect(() => {
+    checkRegistrationStatus();
+  }, []);
+
+  const checkRegistrationStatus = async () => {
+    try {
+      const response = await authApi.getRegistrationStatus();
+      setRegistrationEnabled(response.data.enabled);
+      setIsFirstUser(response.data.firstUser);
+    } catch (error) {
+      console.error('Failed to check registration status:', error);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,13 +45,18 @@ export default function Login({ onLogin }: LoginProps) {
 
     try {
       if (isRegister) {
-        await authApi.register(email, password, name);
+        const response = await authApi.register(email, password, name);
         setIsRegister(false);
         setError('');
-        alert('Registration successful! Please login.');
+        if (response.data.isAdmin) {
+          alert('Admin account created successfully! Please login.');
+        } else {
+          alert('Registration successful! Please login.');
+        }
+        checkRegistrationStatus();
       } else {
         const response = await authApi.login(email, password);
-        onLogin(response.data.token);
+        onLogin(response.data.token, response.data.user);
       }
     } catch (err: any) {
       setError(err.response?.data?.error || 'An error occurred');
@@ -36,6 +64,8 @@ export default function Login({ onLogin }: LoginProps) {
       setLoading(false);
     }
   };
+
+  const showRegisterOption = registrationEnabled || isFirstUser;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8 transition-colors duration-200">
@@ -64,10 +94,15 @@ export default function Login({ onLogin }: LoginProps) {
           <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
             Phone Usage Tracking System
           </p>
+          {isFirstUser && (
+            <p className="mt-2 text-center text-sm text-indigo-600 dark:text-indigo-400 font-medium">
+              Create your admin account to get started
+            </p>
+          )}
         </div>
         <form className="mt-8 space-y-6 bg-white dark:bg-gray-800 p-8 rounded-lg shadow transition-colors duration-200" onSubmit={handleSubmit}>
           <div className="space-y-4">
-            {isRegister && (
+            {(isRegister || isFirstUser) && (
               <div>
                 <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Name
@@ -119,19 +154,27 @@ export default function Login({ onLogin }: LoginProps) {
               disabled={loading}
               className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 transition-colors duration-200"
             >
-              {loading ? 'Please wait...' : isRegister ? 'Register' : 'Sign in'}
+              {loading
+                ? 'Please wait...'
+                : isFirstUser
+                ? 'Create Admin Account'
+                : isRegister
+                ? 'Register'
+                : 'Sign in'}
             </button>
           </div>
 
-          <div className="text-center">
-            <button
-              type="button"
-              onClick={() => setIsRegister(!isRegister)}
-              className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors duration-200"
-            >
-              {isRegister ? 'Already have an account? Sign in' : "Don't have an account? Register"}
-            </button>
-          </div>
+          {showRegisterOption && !isFirstUser && (
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => setIsRegister(!isRegister)}
+                className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors duration-200"
+              >
+                {isRegister ? 'Already have an account? Sign in' : "Don't have an account? Register"}
+              </button>
+            </div>
+          )}
         </form>
       </div>
     </div>

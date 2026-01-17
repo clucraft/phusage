@@ -15,7 +15,7 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401 || error.response?.status === 403) {
+    if (error.response?.status === 401) {
       localStorage.removeItem('token');
       window.location.href = '/';
     }
@@ -28,6 +28,8 @@ export const authApi = {
     api.post('/auth/login', { email, password }),
   register: (email: string, password: string, name: string) =>
     api.post('/auth/register', { email, password, name }),
+  getRegistrationStatus: () =>
+    api.get('/auth/registration-status'),
 };
 
 export const usageApi = {
@@ -63,6 +65,21 @@ export const exportApi = {
     api.get('/export/csv', { params: { month, year }, responseType: 'blob' }),
   downloadPdf: (month?: number, year?: number) =>
     api.get('/export/pdf', { params: { month, year }, responseType: 'blob' }),
+};
+
+export const adminApi = {
+  getUsers: () => api.get('/admin/users'),
+  createUser: (email: string, password: string, name: string, role: string) =>
+    api.post('/admin/users', { email, password, name, role }),
+  updateUserRole: (id: number, role: string) =>
+    api.patch(`/admin/users/${id}/role`, { role }),
+  resetUserPassword: (id: number, password: string) =>
+    api.patch(`/admin/users/${id}/password`, { password }),
+  deleteUser: (id: number) =>
+    api.delete(`/admin/users/${id}`),
+  getSettings: () => api.get('/admin/settings'),
+  updateSettings: (settings: { allowRegistration?: boolean }) =>
+    api.patch('/admin/settings', settings),
 };
 
 export default api;

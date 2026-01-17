@@ -2,12 +2,20 @@ import { Link, useLocation } from 'react-router-dom';
 import { ReactNode } from 'react';
 import { useTheme } from '../hooks/useTheme';
 
+interface User {
+  id: number;
+  email: string;
+  name: string;
+  role: string;
+}
+
 interface LayoutProps {
   children: ReactNode;
   onLogout: () => void;
+  user: User | null;
 }
 
-export default function Layout({ children, onLogout }: LayoutProps) {
+export default function Layout({ children, onLogout, user }: LayoutProps) {
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
 
@@ -16,6 +24,7 @@ export default function Layout({ children, onLogout }: LayoutProps) {
     { path: '/upload', label: 'Upload' },
     { path: '/search', label: 'User Search' },
     { path: '/rates', label: 'Rates' },
+    ...(user?.role === 'admin' ? [{ path: '/admin', label: 'Admin' }] : []),
   ];
 
   return (
@@ -44,6 +53,14 @@ export default function Layout({ children, onLogout }: LayoutProps) {
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              <span className="text-sm text-gray-500 dark:text-gray-400 hidden md:block">
+                {user?.email}
+                {user?.role === 'admin' && (
+                  <span className="ml-2 px-2 py-0.5 text-xs bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 rounded">
+                    Admin
+                  </span>
+                )}
+              </span>
               <button
                 onClick={toggleTheme}
                 className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
