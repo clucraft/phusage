@@ -43,12 +43,12 @@ export default function Upload() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Upload Teams Report</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Upload Teams Report</h1>
 
-      <div className="bg-white p-6 rounded-lg shadow">
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Select File
             </label>
             <input
@@ -56,17 +56,17 @@ export default function Upload() {
               type="file"
               accept=".csv,.xlsx,.xls"
               onChange={handleFileChange}
-              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+              className="block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 dark:file:bg-indigo-900 file:text-indigo-700 dark:file:text-indigo-300 hover:file:bg-indigo-100 dark:hover:file:bg-indigo-800 transition-colors"
             />
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               Supported formats: CSV, XLSX, XLS
             </p>
           </div>
 
           {file && (
-            <div className="flex items-center justify-between bg-gray-50 p-3 rounded-md">
-              <span className="text-sm text-gray-700">{file.name}</span>
-              <span className="text-sm text-gray-500">
+            <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 p-3 rounded-md transition-colors">
+              <span className="text-sm text-gray-700 dark:text-gray-300">{file.name}</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">
                 {(file.size / 1024).toFixed(1)} KB
               </span>
             </div>
@@ -75,7 +75,7 @@ export default function Upload() {
           <button
             onClick={handleUpload}
             disabled={!file || uploading}
-            className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {uploading ? 'Uploading...' : 'Upload Report'}
           </button>
@@ -83,20 +83,22 @@ export default function Upload() {
           {result && (
             <div
               className={`p-4 rounded-md ${
-                result.success ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
-              }`}
+                result.success
+                  ? 'bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                  : 'bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+              } transition-colors`}
             >
               {result.message}
             </div>
           )}
         </div>
 
-        <div className="mt-6 pt-6 border-t border-gray-200">
-          <h3 className="text-sm font-medium text-gray-900 mb-2">Expected File Format</h3>
-          <p className="text-sm text-gray-600 mb-2">
+        <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+          <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Expected File Format</h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
             The file should contain the following columns (headers can vary):
           </p>
-          <ul className="text-sm text-gray-600 list-disc list-inside space-y-1">
+          <ul className="text-sm text-gray-600 dark:text-gray-400 list-disc list-inside space-y-1">
             <li>User / UserName / user_name - User's display name</li>
             <li>Email / UserEmail / user_email - User's email address</li>
             <li>Date / CallDate / call_date - Date of the call</li>

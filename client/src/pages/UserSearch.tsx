@@ -51,9 +51,9 @@ export default function UserSearch() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">User Search</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-white">User Search</h1>
 
-      <div className="bg-white p-6 rounded-lg shadow">
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
         <form onSubmit={handleSearch} className="flex flex-wrap gap-4">
           <div className="flex-1 min-w-[200px]">
             <input
@@ -61,13 +61,13 @@ export default function UserSearch() {
               placeholder="Search by email..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
             />
           </div>
           <select
             value={month}
             onChange={(e) => setMonth(Number(e.target.value))}
-            className="border border-gray-300 rounded-md px-3 py-2"
+            className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
           >
             {months.map((m, i) => (
               <option key={i} value={i + 1}>{m}</option>
@@ -76,7 +76,7 @@ export default function UserSearch() {
           <select
             value={year}
             onChange={(e) => setYear(Number(e.target.value))}
-            className="border border-gray-300 rounded-md px-3 py-2"
+            className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
           >
             {[2024, 2025, 2026].map((y) => (
               <option key={y} value={y}>{y}</option>
@@ -85,7 +85,7 @@ export default function UserSearch() {
           <button
             type="submit"
             disabled={loading}
-            className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50"
+            className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors"
           >
             {loading ? 'Searching...' : 'Search'}
           </button>
@@ -93,7 +93,7 @@ export default function UserSearch() {
       </div>
 
       {error && (
-        <div className="bg-red-50 text-red-800 p-4 rounded-md">
+        <div className="bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300 p-4 rounded-md transition-colors">
           {error}
         </div>
       )}
@@ -101,27 +101,27 @@ export default function UserSearch() {
       {userData && (
         <>
           {/* User Summary */}
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
               {userData.userName}
             </h2>
-            <p className="text-sm text-gray-500 mb-4">{userData.userEmail}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{userData.userEmail}</p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-gray-50 p-4 rounded-md">
-                <p className="text-sm text-gray-500">Total Minutes</p>
-                <p className="text-2xl font-bold text-gray-900">
+              <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-md transition-colors">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Total Minutes</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
                   {userData.totalMinutes.toLocaleString()}
                 </p>
               </div>
-              <div className="bg-gray-50 p-4 rounded-md">
-                <p className="text-sm text-gray-500">Total Calls</p>
-                <p className="text-2xl font-bold text-gray-900">
+              <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-md transition-colors">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Total Calls</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
                   {userData.totalCalls.toLocaleString()}
                 </p>
               </div>
-              <div className="bg-gray-50 p-4 rounded-md">
-                <p className="text-sm text-gray-500">Total Cost</p>
-                <p className="text-2xl font-bold text-gray-900">
+              <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-md transition-colors">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Total Cost</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
                   ${userData.totalCost.toFixed(2)}
                 </p>
               </div>
@@ -129,33 +129,33 @@ export default function UserSearch() {
           </div>
 
           {/* Call History */}
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">Call History</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden transition-colors">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Call History</h2>
             </div>
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-700">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Destination</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Cost</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Type</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Destination</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Duration</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Cost</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {userData.calls.map((call, i) => (
-                    <tr key={i} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {new Date(call.date).toLocaleDateString()}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{call.type}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{call.destination || '-'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{call.type}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{call.destination || '-'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white text-right">
                         {Math.round(call.duration / 60)} min
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white text-right">
                         ${call.cost.toFixed(2)}
                       </td>
                     </tr>
