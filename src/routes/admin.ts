@@ -66,7 +66,7 @@ router.post('/users', async (req: AuthRequest, res: Response) => {
 // Update user role
 router.patch('/users/:id/role', async (req: AuthRequest, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id as string);
     const { role } = req.body;
 
     if (!['admin', 'user'].includes(role)) {
@@ -105,7 +105,7 @@ router.patch('/users/:id/role', async (req: AuthRequest, res: Response) => {
 // Reset user password
 router.patch('/users/:id/password', async (req: AuthRequest, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id as string);
     const { password } = req.body;
 
     if (!password || password.length < 6) {
@@ -129,7 +129,7 @@ router.patch('/users/:id/password', async (req: AuthRequest, res: Response) => {
 // Delete user
 router.delete('/users/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id as string);
 
     // Prevent deleting yourself
     if (req.user?.id === id) {
