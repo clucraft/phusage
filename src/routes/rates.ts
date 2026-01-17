@@ -37,7 +37,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 // Delete a rate
 router.delete('/:callType', async (req: AuthRequest, res: Response) => {
   try {
-    const { callType } = req.params;
+    const callType = req.params.callType as string;
 
     await prisma.rateMatrix.delete({
       where: { callType },

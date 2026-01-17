@@ -142,7 +142,7 @@ router.get('/top10', async (req: AuthRequest, res: Response) => {
 // Search for individual user
 router.get('/user/:email', async (req: AuthRequest, res: Response) => {
   try {
-    const { email } = req.params;
+    const email = req.params.email as string;
     const { month, year } = req.query;
 
     let dateFilter = {};
