@@ -25,31 +25,45 @@ model AppSettings {
 }
 
 model CallRecord {
-  id          Int      @id @default(autoincrement())
-  userName    String
-  userEmail   String
-  callDate    DateTime
-  duration    Int      // Duration in seconds
-  callType    String   // e.g., "domestic", "international", "tollfree"
-  destination String?
-  uploadedAt  DateTime @default(now())
+  id              Int      @id @default(autoincrement())
+  userName        String
+  userEmail       String
+  callDate        DateTime
+  duration        Int      // Duration in seconds
+  callType        String   // e.g., "Outbound", "Inbound"
+  sourceNumber    String?  // Source phone number
+  destination     String?  // Destination phone number
+  originCountry   String?  // Parsed from source number
+  destCountry     String?  // Parsed from destination number
+  uploadedAt      DateTime @default(now())
 
   @@index([userEmail])
   @@index([callDate])
+  @@index([originCountry])
+  @@index([destCountry])
 }
 
 model RateMatrix {
-  id            Int      @id @default(autoincrement())
-  callType      String   @unique
-  ratePerMinute Decimal  @db.Decimal(10, 4)
-  description   String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id              Int       @id @default(autoincrement())
+  originCountry   String    // e.g., "USA", "UK"
+  destination     String    // e.g., "Afghanistan", "Afghanistan-Mobile"
+  destCountry     String    // Base country extracted from destination
+  callType        String    // e.g., "Outbound"
+  pricePerMinute  Decimal   @db.Decimal(10, 4)
+  effectiveDate   DateTime?
+  endDate         DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([originCountry, destination, callType])
+  @@index([originCountry])
+  @@index([destCountry])
 }
 
 model UploadHistory {
   id           Int      @id @default(autoincrement())
   fileName     String
+  fileType     String   @default("teams") // "teams" or "rates"
   recordCount  Int
   uploadedBy   String
   uploadedAt   DateTime @default(now())

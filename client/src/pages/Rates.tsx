@@ -1,50 +1,166 @@
-import { useState, useEffect } from 'react';
-import { ratesApi } from '../services/api';
+import { useState, useEffect, useRef } from 'react';
+import { ratesApi, uploadApi } from '../services/api';
 
 interface Rate {
   id: number;
+  originCountry: string;
+  destination: string;
+  destCountry: string;
   callType: string;
-  ratePerMinute: number;
-  description: string | null;
+  pricePerMinute: number;
+}
+
+interface RateStats {
+  totalRates: number;
+  originCountries: number;
+  destinationCountries: number;
+}
+
+interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
 }
 
 export default function Rates() {
   const [rates, setRates] = useState<Rate[]>([]);
+  const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 100, total: 0, pages: 0 });
+  const [stats, setStats] = useState<RateStats | null>(null);
+  const [origins, setOrigins] = useState<string[]>([]);
+  const [destinations, setDestinations] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [newRate, setNewRate] = useState({ callType: '', ratePerMinute: '', description: '' });
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  // Filters
+  const [originFilter, setOriginFilter] = useState('');
+  const [destFilter, setDestFilter] = useState('');
+
+  // Upload state
+  const [uploading, setUploading] = useState(false);
+  const [uploadResult, setUploadResult] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [clearExisting, setClearExisting] = useState(true);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Manual rate add
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newRate, setNewRate] = useState({
+    originCountry: '',
+    destination: '',
+    pricePerMinute: '',
+    callType: 'Outbound',
+  });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetchStats();
+    fetchOrigins();
+  }, []);
 
   useEffect(() => {
     fetchRates();
-  }, []);
+  }, [originFilter, destFilter, pagination.page]);
+
+  useEffect(() => {
+    if (originFilter) {
+      fetchDestinations(originFilter);
+    } else {
+      setDestinations([]);
+    }
+  }, [originFilter]);
 
   const fetchRates = async () => {
     try {
-      const response = await ratesApi.getRates();
-      setRates(response.data);
-    } catch (error) {
-      console.error('Failed to fetch rates:', error);
+      setLoading(true);
+      const params: any = { page: pagination.page, limit: pagination.limit };
+      if (originFilter) params.originCountry = originFilter;
+      if (destFilter) params.destCountry = destFilter;
+
+      const response = await ratesApi.getRates(params);
+      setRates(response.data.rates);
+      setPagination(response.data.pagination);
+    } catch (err) {
+      console.error('Failed to fetch rates:', err);
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchStats = async () => {
+    try {
+      const response = await ratesApi.getStats();
+      setStats(response.data);
+    } catch (err) {
+      console.error('Failed to fetch stats:', err);
+    }
+  };
+
+  const fetchOrigins = async () => {
+    try {
+      const response = await ratesApi.getOrigins();
+      setOrigins(response.data);
+    } catch (err) {
+      console.error('Failed to fetch origins:', err);
+    }
+  };
+
+  const fetchDestinations = async (origin: string) => {
+    try {
+      const response = await ratesApi.getDestinations(origin);
+      setDestinations(response.data);
+    } catch (err) {
+      console.error('Failed to fetch destinations:', err);
+    }
+  };
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    setUploadResult(null);
+    setError('');
+
+    try {
+      const response = await uploadApi.uploadVerizonRates(file, clearExisting);
+      setUploadResult({
+        message: `Imported ${response.data.recordsProcessed} rates${response.data.recordsSkipped ? ` (${response.data.recordsSkipped} skipped)` : ''}`,
+        type: 'success',
+      });
+      fetchRates();
+      fetchStats();
+      fetchOrigins();
+    } catch (err: any) {
+      setUploadResult({
+        message: err.response?.data?.error || 'Failed to upload rate file',
+        type: 'error',
+      });
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   const handleAddRate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newRate.callType || !newRate.ratePerMinute) return;
+    if (!newRate.originCountry || !newRate.destination || !newRate.pricePerMinute) return;
 
     setSaving(true);
     setError('');
 
     try {
       await ratesApi.saveRate(
-        newRate.callType,
-        parseFloat(newRate.ratePerMinute),
-        newRate.description || undefined
+        newRate.originCountry,
+        newRate.destination,
+        parseFloat(newRate.pricePerMinute),
+        newRate.callType
       );
-      setNewRate({ callType: '', ratePerMinute: '', description: '' });
+      setNewRate({ originCountry: '', destination: '', pricePerMinute: '', callType: 'Outbound' });
+      setShowAddForm(false);
       fetchRates();
+      fetchStats();
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to save rate');
     } finally {
@@ -52,108 +168,282 @@ export default function Rates() {
     }
   };
 
-  const handleDeleteRate = async (callType: string) => {
-    if (!confirm(`Delete rate for "${callType}"?`)) return;
+  const handleDeleteRate = async (id: number) => {
+    if (!confirm('Delete this rate?')) return;
 
     try {
-      await ratesApi.deleteRate(callType);
+      await ratesApi.deleteRate(id);
       fetchRates();
-    } catch (error) {
-      console.error('Failed to delete rate:', error);
+      fetchStats();
+    } catch (err) {
+      console.error('Failed to delete rate:', err);
+    }
+  };
+
+  const handleClearAllRates = async () => {
+    if (!confirm('Are you sure you want to delete ALL rates? This cannot be undone.')) return;
+
+    try {
+      await ratesApi.clearAllRates();
+      fetchRates();
+      fetchStats();
+      fetchOrigins();
+      setUploadResult({ message: 'All rates cleared', type: 'success' });
+    } catch (err) {
+      console.error('Failed to clear rates:', err);
     }
   };
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Rate Matrix</h1>
-
-      {/* Add New Rate Form */}
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Add / Update Rate</h2>
-        <form onSubmit={handleAddRate} className="flex flex-wrap gap-4">
-          <div className="flex-1 min-w-[150px]">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Call Type</label>
-            <input
-              type="text"
-              placeholder="e.g., domestic"
-              value={newRate.callType}
-              onChange={(e) => setNewRate({ ...newRate, callType: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
-            />
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Rate Matrix</h1>
+        {stats && (
+          <div className="flex gap-4 text-sm text-gray-600 dark:text-gray-400">
+            <span><strong>{stats.totalRates.toLocaleString()}</strong> rates</span>
+            <span><strong>{stats.originCountries}</strong> origins</span>
+            <span><strong>{stats.destinationCountries}</strong> destinations</span>
           </div>
-          <div className="w-32">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Rate/Min ($)</label>
-            <input
-              type="number"
-              step="0.0001"
-              placeholder="0.00"
-              value={newRate.ratePerMinute}
-              onChange={(e) => setNewRate({ ...newRate, ratePerMinute: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
-            />
-          </div>
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
-            <input
-              type="text"
-              placeholder="Optional description"
-              value={newRate.description}
-              onChange={(e) => setNewRate({ ...newRate, description: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
-            />
-          </div>
-          <div className="flex items-end">
-            <button
-              type="submit"
-              disabled={saving}
-              className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-            >
-              {saving ? 'Saving...' : 'Save Rate'}
-            </button>
-          </div>
-        </form>
-        {error && (
-          <div className="mt-4 text-red-600 dark:text-red-400 text-sm">{error}</div>
         )}
       </div>
 
+      {/* Upload Section */}
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Import Verizon Rate Matrix</h2>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Upload the Verizon VoIP Usage Rates Excel file (.xlsx). The system will parse the "Usage Geographic Termination" sheet
+          and import rates with origin country, destination, and price per minute.
+        </p>
+        <div className="flex flex-wrap items-center gap-4">
+          <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input
+              type="checkbox"
+              checked={clearExisting}
+              onChange={(e) => setClearExisting(e.target.checked)}
+              className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            Clear existing rates before import
+          </label>
+          <label className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 cursor-pointer transition-colors">
+            {uploading ? 'Uploading...' : 'Choose File'}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={handleUpload}
+              disabled={uploading}
+              className="hidden"
+            />
+          </label>
+          <button
+            onClick={handleClearAllRates}
+            className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm transition-colors"
+          >
+            Clear All Rates
+          </button>
+        </div>
+        {uploadResult && (
+          <div className={`mt-4 p-3 rounded-md text-sm ${
+            uploadResult.type === 'success'
+              ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+              : 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+          }`}>
+            {uploadResult.message}
+          </div>
+        )}
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow transition-colors">
+        <div className="flex flex-wrap gap-4 items-end">
+          <div className="w-48">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Origin Country
+            </label>
+            <select
+              value={originFilter}
+              onChange={(e) => {
+                setOriginFilter(e.target.value);
+                setDestFilter('');
+                setPagination(p => ({ ...p, page: 1 }));
+              }}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+            >
+              <option value="">All Origins</option>
+              {origins.map((origin) => (
+                <option key={origin} value={origin}>{origin}</option>
+              ))}
+            </select>
+          </div>
+          <div className="w-48">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Destination Country
+            </label>
+            <select
+              value={destFilter}
+              onChange={(e) => {
+                setDestFilter(e.target.value);
+                setPagination(p => ({ ...p, page: 1 }));
+              }}
+              disabled={!originFilter}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 transition-colors"
+            >
+              <option value="">All Destinations</option>
+              {destinations.map((dest) => (
+                <option key={dest} value={dest}>{dest}</option>
+              ))}
+            </select>
+          </div>
+          <button
+            onClick={() => {
+              setOriginFilter('');
+              setDestFilter('');
+              setPagination(p => ({ ...p, page: 1 }));
+            }}
+            className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors"
+          >
+            Clear Filters
+          </button>
+          <div className="flex-1" />
+          <button
+            onClick={() => setShowAddForm(!showAddForm)}
+            className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm transition-colors"
+          >
+            {showAddForm ? 'Cancel' : 'Add Rate Manually'}
+          </button>
+        </div>
+      </div>
+
+      {/* Manual Add Form */}
+      {showAddForm && (
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Add / Update Rate</h2>
+          <form onSubmit={handleAddRate} className="flex flex-wrap gap-4">
+            <div className="w-40">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Origin Country</label>
+              <input
+                type="text"
+                placeholder="e.g., USA"
+                value={newRate.originCountry}
+                onChange={(e) => setNewRate({ ...newRate, originCountry: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+              />
+            </div>
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Destination</label>
+              <input
+                type="text"
+                placeholder="e.g., Afghanistan-Mobile"
+                value={newRate.destination}
+                onChange={(e) => setNewRate({ ...newRate, destination: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+              />
+            </div>
+            <div className="w-32">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Call Type</label>
+              <select
+                value={newRate.callType}
+                onChange={(e) => setNewRate({ ...newRate, callType: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+              >
+                <option value="Outbound">Outbound</option>
+                <option value="Inbound">Inbound</option>
+              </select>
+            </div>
+            <div className="w-32">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Price/Min ($)</label>
+              <input
+                type="number"
+                step="0.0001"
+                placeholder="0.0000"
+                value={newRate.pricePerMinute}
+                onChange={(e) => setNewRate({ ...newRate, pricePerMinute: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+              />
+            </div>
+            <div className="flex items-end">
+              <button
+                type="submit"
+                disabled={saving}
+                className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+              >
+                {saving ? 'Saving...' : 'Save Rate'}
+              </button>
+            </div>
+          </form>
+          {error && (
+            <div className="mt-4 text-red-600 dark:text-red-400 text-sm">{error}</div>
+          )}
+        </div>
+      )}
+
       {/* Rates Table */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden transition-colors">
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Current Rates</h2>
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+            Rates {pagination.total > 0 && `(${pagination.total.toLocaleString()} total)`}
+          </h2>
+          {pagination.pages > 1 && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPagination(p => ({ ...p, page: p.page - 1 }))}
+                disabled={pagination.page === 1}
+                className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded disabled:opacity-50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                Previous
+              </button>
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                Page {pagination.page} of {pagination.pages}
+              </span>
+              <button
+                onClick={() => setPagination(p => ({ ...p, page: p.page + 1 }))}
+                disabled={pagination.page === pagination.pages}
+                className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded disabled:opacity-50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                Next
+              </button>
+            </div>
+          )}
         </div>
         {loading ? (
           <div className="p-6 text-center text-gray-500 dark:text-gray-400">Loading...</div>
         ) : rates.length === 0 ? (
           <div className="p-6 text-center text-gray-500 dark:text-gray-400">
-            No rates configured. Add rates above to calculate usage costs.
+            No rates found. Upload a Verizon rate file or add rates manually.
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Origin</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Destination</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Call Type</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Rate per Minute</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Description</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Price/Min</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {rates.map((rate) => (
                   <tr key={rate.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      {rate.callType}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                      {rate.originCountry}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white text-right">
-                      ${Number(rate.ratePerMinute).toFixed(4)}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                      {rate.destination}
+                      {rate.destination !== rate.destCountry && (
+                        <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">({rate.destCountry})</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {rate.description || '-'}
+                      {rate.callType}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white text-right font-mono">
+                      ${Number(rate.pricePerMinute).toFixed(4)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                       <button
-                        onClick={() => handleDeleteRate(rate.callType)}
+                        onClick={() => handleDeleteRate(rate.id)}
                         className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 transition-colors"
                       >
                         Delete
@@ -169,16 +459,16 @@ export default function Rates() {
 
       {/* Help Section */}
       <div className="bg-blue-50 dark:bg-blue-900/30 p-6 rounded-lg transition-colors">
-        <h3 className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-2">Verizon Rate Matrix</h3>
+        <h3 className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-2">Verizon Geographic Rates</h3>
         <p className="text-sm text-blue-700 dark:text-blue-400">
-          Enter the rates provided by Verizon for different call types. The call type should match
-          the "Type" column in your Teams reports. Common types include:
+          The rate matrix uses geographic pricing based on origin and destination countries.
+          When calculating usage costs, the system:
         </p>
         <ul className="mt-2 text-sm text-blue-700 dark:text-blue-400 list-disc list-inside">
-          <li><strong>domestic</strong> - US domestic calls</li>
-          <li><strong>international</strong> - International calls</li>
-          <li><strong>tollfree</strong> - Toll-free numbers</li>
-          <li><strong>default</strong> - Fallback rate for unmatched types</li>
+          <li>Determines origin country from the source phone number's country code</li>
+          <li>Determines destination country from the called number's country code</li>
+          <li>Looks up the rate based on origin + destination + call type</li>
+          <li>Falls back to base country rates if specific destination (e.g., Mobile) not found</li>
         </ul>
       </div>
     </div>

@@ -1,10 +1,43 @@
 import { Router, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, RateMatrix } from '@prisma/client';
 import PDFDocument from 'pdfkit';
 import { AuthRequest } from '../middleware/auth.js';
 
 const router = Router();
 const prisma = new PrismaClient();
+
+// Helper function to find rate for a call based on geographic matching
+function findRateForCall(
+  rates: RateMatrix[],
+  originCountry: string | null,
+  destCountry: string | null,
+  callType: string
+): number {
+  if (!originCountry || !destCountry) return 0;
+
+  let rate = rates.find(
+    r => r.originCountry === originCountry &&
+         r.destCountry === destCountry &&
+         r.callType === callType
+  );
+
+  if (!rate) {
+    rate = rates.find(
+      r => r.originCountry === originCountry &&
+           r.destination === destCountry &&
+           r.callType === callType
+    );
+  }
+
+  if (!rate) {
+    rate = rates.find(
+      r => r.originCountry === originCountry &&
+           r.destCountry === destCountry
+    );
+  }
+
+  return rate ? Number(rate.pricePerMinute) : 0;
+}
 
 // Export usage summary as CSV
 router.get('/csv', async (req: AuthRequest, res: Response) => {
@@ -35,7 +68,6 @@ router.get('/csv', async (req: AuthRequest, res: Response) => {
     });
 
     const rates = await prisma.rateMatrix.findMany();
-    const rateMap = new Map(rates.map(r => [r.callType, r.ratePerMinute]));
 
     const summaryWithCosts = await Promise.all(
       usageSummary.map(async (user) => {
@@ -47,13 +79,16 @@ router.get('/csv', async (req: AuthRequest, res: Response) => {
           select: {
             callType: true,
             duration: true,
+            originCountry: true,
+            destCountry: true,
           },
         });
 
-        const totalCost = userCalls.reduce((sum, call) => {
-          const rate = rateMap.get(call.callType) || rateMap.get('default') || 0;
-          return sum + (call.duration / 60) * Number(rate);
-        }, 0);
+        let totalCost = 0;
+        for (const call of userCalls) {
+          const rate = findRateForCall(rates, call.originCountry, call.destCountry, call.callType);
+          totalCost += (call.duration / 60) * rate;
+        }
 
         return {
           userName: user.userName,
@@ -115,7 +150,6 @@ router.get('/pdf', async (req: AuthRequest, res: Response) => {
     });
 
     const rates = await prisma.rateMatrix.findMany();
-    const rateMap = new Map(rates.map(r => [r.callType, r.ratePerMinute]));
 
     const summaryWithCosts = await Promise.all(
       usageSummary.map(async (user) => {
@@ -127,13 +161,16 @@ router.get('/pdf', async (req: AuthRequest, res: Response) => {
           select: {
             callType: true,
             duration: true,
+            originCountry: true,
+            destCountry: true,
           },
         });
 
-        const totalCost = userCalls.reduce((sum, call) => {
-          const rate = rateMap.get(call.callType) || rateMap.get('default') || 0;
-          return sum + (call.duration / 60) * Number(rate);
-        }, 0);
+        let totalCost = 0;
+        for (const call of userCalls) {
+          const rate = findRateForCall(rates, call.originCountry, call.destCountry, call.callType);
+          totalCost += (call.duration / 60) * rate;
+        }
 
         return {
           userName: user.userName,

@@ -49,15 +49,29 @@ export const uploadApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+  uploadVerizonRates: (file: File, clearExisting: boolean = true) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('clearExisting', String(clearExisting));
+    return api.post('/upload/verizon-rates', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 };
 
 export const ratesApi = {
-  getRates: () => api.get('/rates'),
-  saveRate: (callType: string, ratePerMinute: number, description?: string) =>
-    api.post('/rates', { callType, ratePerMinute, description }),
-  deleteRate: (callType: string) => api.delete(`/rates/${encodeURIComponent(callType)}`),
-  bulkImport: (rates: Array<{ callType: string; ratePerMinute: number; description?: string }>) =>
-    api.post('/rates/bulk', { rates }),
+  getRates: (params?: { originCountry?: string; destCountry?: string; page?: number; limit?: number }) =>
+    api.get('/rates', { params }),
+  getOrigins: () => api.get('/rates/origins'),
+  getDestinations: (originCountry?: string) =>
+    api.get('/rates/destinations', { params: { originCountry } }),
+  getStats: () => api.get('/rates/stats'),
+  lookupRate: (originCountry: string, destCountry: string, callType?: string) =>
+    api.get('/rates/lookup', { params: { originCountry, destCountry, callType } }),
+  saveRate: (originCountry: string, destination: string, pricePerMinute: number, callType?: string) =>
+    api.post('/rates', { originCountry, destination, pricePerMinute, callType }),
+  deleteRate: (id: number) => api.delete(`/rates/${id}`),
+  clearAllRates: () => api.delete('/rates'),
 };
 
 export const exportApi = {
