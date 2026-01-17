@@ -57,6 +57,7 @@ export const uploadApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+  clearCallRecords: () => api.delete('/upload/call-records'),
 };
 
 export const ratesApi = {

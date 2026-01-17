@@ -4,6 +4,7 @@ import { uploadApi } from '../services/api';
 export default function Upload() {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -23,9 +24,12 @@ export default function Upload() {
 
     try {
       const response = await uploadApi.uploadTeamsReport(file);
+      const skippedMsg = response.data.recordsSkipped
+        ? ` (${response.data.recordsSkipped} skipped - failed/zero duration)`
+        : '';
       setResult({
         success: true,
-        message: `Successfully processed ${response.data.recordsProcessed} records.`,
+        message: `Successfully processed ${response.data.recordsProcessed} records${skippedMsg}.`,
       });
       setFile(null);
       if (fileInputRef.current) {
@@ -38,6 +42,28 @@ export default function Upload() {
       });
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleClearRecords = async () => {
+    if (!confirm('Are you sure you want to delete ALL call records? This cannot be undone.')) return;
+
+    setClearing(true);
+    setResult(null);
+
+    try {
+      const response = await uploadApi.clearCallRecords();
+      setResult({
+        success: true,
+        message: response.data.message,
+      });
+    } catch (error: any) {
+      setResult({
+        success: false,
+        message: error.response?.data?.error || 'Failed to clear records',
+      });
+    } finally {
+      setClearing(false);
     }
   };
 
@@ -96,16 +122,34 @@ export default function Upload() {
         <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
           <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Expected File Format</h3>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-            The file should contain the following columns (headers can vary):
+            Teams PSTN Usage Report columns (exported from Teams Admin Center):
           </p>
           <ul className="text-sm text-gray-600 dark:text-gray-400 list-disc list-inside space-y-1">
-            <li>User / UserName / user_name - User's display name</li>
-            <li>Email / UserEmail / user_email - User's email address</li>
-            <li>Date / CallDate / call_date - Date of the call</li>
-            <li>Duration / CallDuration / duration - Call duration in seconds</li>
-            <li>Type / CallType / call_type - Type of call (e.g., domestic, international)</li>
-            <li>Destination / ToNumber / destination - Called number (optional)</li>
+            <li><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">Display Name</code> - User's display name</li>
+            <li><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">UPN</code> - User's email address</li>
+            <li><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">Start time</code> - Call start timestamp</li>
+            <li><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">Duration (seconds)</code> - Call duration</li>
+            <li><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">Caller Number</code> - Source phone number</li>
+            <li><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">Callee Number</code> - Destination phone number</li>
+            <li><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">Call Direction</code> - Inbound/Outbound</li>
+            <li><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">User country</code> - Origin country</li>
+            <li><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">External Country</code> - Destination country</li>
+            <li><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">Success</code> - Failed calls are skipped</li>
           </ul>
+        </div>
+
+        <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+          <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Manage Data</h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+            Clear all existing call records before re-importing data.
+          </p>
+          <button
+            onClick={handleClearRecords}
+            disabled={clearing}
+            className="bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {clearing ? 'Clearing...' : 'Clear All Call Records'}
+          </button>
         </div>
       </div>
     </div>

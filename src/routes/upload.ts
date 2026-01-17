@@ -120,6 +120,17 @@ router.post('/teams-report', upload.single('file'), async (req: AuthRequest, res
   }
 });
 
+// Clear all call records
+router.delete('/call-records', async (req: AuthRequest, res: Response) => {
+  try {
+    const result = await prisma.callRecord.deleteMany({});
+    res.json({ message: `Deleted ${result.count} call records` });
+  } catch (error) {
+    console.error('Clear call records error:', error);
+    res.status(500).json({ error: 'Failed to clear call records' });
+  }
+});
+
 // Upload Verizon rate matrix
 router.post('/verizon-rates', upload.single('file'), async (req: AuthRequest, res: Response) => {
   try {
