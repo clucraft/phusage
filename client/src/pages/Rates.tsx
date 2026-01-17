@@ -27,14 +27,14 @@ export default function Rates() {
   const [rates, setRates] = useState<Rate[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 100, total: 0, pages: 0 });
   const [stats, setStats] = useState<RateStats | null>(null);
-  const [origins, setOrigins] = useState<string[]>([]);
-  const [destinations, setDestinations] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Filters
-  const [originFilter, setOriginFilter] = useState('');
-  const [destFilter, setDestFilter] = useState('');
+  // Search inputs
+  const [originSearch, setOriginSearch] = useState('');
+  const [destSearch, setDestSearch] = useState('');
+  const [debouncedOriginSearch, setDebouncedOriginSearch] = useState('');
+  const [debouncedDestSearch, setDebouncedDestSearch] = useState('');
 
   // Upload state
   const [uploading, setUploading] = useState(false);
@@ -54,27 +54,35 @@ export default function Rates() {
 
   useEffect(() => {
     fetchStats();
-    fetchOrigins();
   }, []);
+
+  // Debounce search inputs
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedOriginSearch(originSearch);
+      setPagination(p => ({ ...p, page: 1 }));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [originSearch]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedDestSearch(destSearch);
+      setPagination(p => ({ ...p, page: 1 }));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [destSearch]);
 
   useEffect(() => {
     fetchRates();
-  }, [originFilter, destFilter, pagination.page]);
-
-  useEffect(() => {
-    if (originFilter) {
-      fetchDestinations(originFilter);
-    } else {
-      setDestinations([]);
-    }
-  }, [originFilter]);
+  }, [debouncedOriginSearch, debouncedDestSearch, pagination.page]);
 
   const fetchRates = async () => {
     try {
       setLoading(true);
       const params: any = { page: pagination.page, limit: pagination.limit };
-      if (originFilter) params.originCountry = originFilter;
-      if (destFilter) params.destCountry = destFilter;
+      if (debouncedOriginSearch) params.originSearch = debouncedOriginSearch;
+      if (debouncedDestSearch) params.destSearch = debouncedDestSearch;
 
       const response = await ratesApi.getRates(params);
       setRates(response.data.rates);
@@ -95,24 +103,6 @@ export default function Rates() {
     }
   };
 
-  const fetchOrigins = async () => {
-    try {
-      const response = await ratesApi.getOrigins();
-      setOrigins(response.data);
-    } catch (err) {
-      console.error('Failed to fetch origins:', err);
-    }
-  };
-
-  const fetchDestinations = async (origin: string) => {
-    try {
-      const response = await ratesApi.getDestinations(origin);
-      setDestinations(response.data);
-    } catch (err) {
-      console.error('Failed to fetch destinations:', err);
-    }
-  };
-
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -129,7 +119,6 @@ export default function Rates() {
       });
       fetchRates();
       fetchStats();
-      fetchOrigins();
     } catch (err: any) {
       setUploadResult({
         message: err.response?.data?.error || 'Failed to upload rate file',
@@ -187,7 +176,6 @@ export default function Rates() {
       await ratesApi.clearAllRates();
       fetchRates();
       fetchStats();
-      fetchOrigins();
       setUploadResult({ message: 'All rates cleared', type: 'success' });
     } catch (err) {
       console.error('Failed to clear rates:', err);
@@ -253,57 +241,44 @@ export default function Rates() {
         )}
       </div>
 
-      {/* Filters */}
+      {/* Search Filters */}
       <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow transition-colors">
         <div className="flex flex-wrap gap-4 items-end">
-          <div className="w-48">
+          <div className="w-56">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Origin Country
+              Search Origin Country
             </label>
-            <select
-              value={originFilter}
-              onChange={(e) => {
-                setOriginFilter(e.target.value);
-                setDestFilter('');
-                setPagination(p => ({ ...p, page: 1 }));
-              }}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
-            >
-              <option value="">All Origins</option>
-              {origins.map((origin) => (
-                <option key={origin} value={origin}>{origin}</option>
-              ))}
-            </select>
+            <input
+              type="text"
+              placeholder="e.g., USA, UK, Germany..."
+              value={originSearch}
+              onChange={(e) => setOriginSearch(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+            />
           </div>
-          <div className="w-48">
+          <div className="w-56">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Destination Country
+              Search Destination
             </label>
-            <select
-              value={destFilter}
-              onChange={(e) => {
-                setDestFilter(e.target.value);
-                setPagination(p => ({ ...p, page: 1 }));
-              }}
-              disabled={!originFilter}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 transition-colors"
-            >
-              <option value="">All Destinations</option>
-              {destinations.map((dest) => (
-                <option key={dest} value={dest}>{dest}</option>
-              ))}
-            </select>
+            <input
+              type="text"
+              placeholder="e.g., Afghanistan, Mobile..."
+              value={destSearch}
+              onChange={(e) => setDestSearch(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+            />
           </div>
-          <button
-            onClick={() => {
-              setOriginFilter('');
-              setDestFilter('');
-              setPagination(p => ({ ...p, page: 1 }));
-            }}
-            className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors"
-          >
-            Clear Filters
-          </button>
+          {(originSearch || destSearch) && (
+            <button
+              onClick={() => {
+                setOriginSearch('');
+                setDestSearch('');
+              }}
+              className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors"
+            >
+              Clear Search
+            </button>
+          )}
           <div className="flex-1" />
           <button
             onClick={() => setShowAddForm(!showAddForm)}

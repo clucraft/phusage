@@ -8,14 +8,27 @@ const prisma = new PrismaClient();
 // Get all rates with pagination and filtering
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
-    const { originCountry, destCountry, page = '1', limit = '100' } = req.query;
+    const { originCountry, destCountry, originSearch, destSearch, page = '1', limit = '100' } = req.query;
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
     const skip = (pageNum - 1) * limitNum;
 
     const where: any = {};
+
+    // Exact match filters (from dropdowns)
     if (originCountry) where.originCountry = originCountry;
     if (destCountry) where.destCountry = destCountry;
+
+    // Partial match search (from text inputs)
+    if (originSearch) {
+      where.originCountry = { contains: originSearch as string, mode: 'insensitive' };
+    }
+    if (destSearch) {
+      where.OR = [
+        { destination: { contains: destSearch as string, mode: 'insensitive' } },
+        { destCountry: { contains: destSearch as string, mode: 'insensitive' } },
+      ];
+    }
 
     const [rates, total] = await Promise.all([
       prisma.rateMatrix.findMany({

@@ -60,7 +60,7 @@ export const uploadApi = {
 };
 
 export const ratesApi = {
-  getRates: (params?: { originCountry?: string; destCountry?: string; page?: number; limit?: number }) =>
+  getRates: (params?: { originCountry?: string; destCountry?: string; originSearch?: string; destSearch?: string; page?: number; limit?: number }) =>
     api.get('/rates', { params }),
   getOrigins: () => api.get('/rates/origins'),
   getDestinations: (originCountry?: string) =>
