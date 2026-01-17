@@ -40,25 +40,56 @@ router.post('/teams-report', upload.single('file'), async (req: AuthRequest, res
 
     // Process and store call records
     let processed = 0;
-    for (const record of records) {
-      const sourceNumber = record['Source'] || record['SourceNumber'] || record['source_number'] || record['From'] || '';
-      const destNumber = record['Destination'] || record['ToNumber'] || record['destination'] || record['To'] || '';
+    let skipped = 0;
 
-      // Parse countries from phone numbers
-      const originCountry = getCountryFromPhoneNumber(sourceNumber);
-      const destCountry = getCountryFromPhoneNumber(destNumber);
+    for (const record of records) {
+      // Skip failed calls
+      const success = record['Success'] || record['success'] || '';
+      if (success.toLowerCase() === 'no' || success === '0' || success === 'false') {
+        skipped++;
+        continue;
+      }
+
+      // Get duration and skip zero-duration calls
+      const duration = parseInt(
+        record['Duration (seconds)'] || record['Duration'] || record['CallDuration'] || record['duration'] || '0'
+      );
+      if (duration === 0) {
+        skipped++;
+        continue;
+      }
+
+      // Map Teams PSTN export columns (with fallbacks for other formats)
+      const sourceNumber = record['Caller Number'] || record['Source'] || record['SourceNumber'] || record['From'] || '';
+      const destNumber = record['Callee Number'] || record['Destination'] || record['ToNumber'] || record['To'] || '';
+
+      // Use provided country fields, fall back to phone number parsing
+      const userCountry = record['User country'] || record['User Country'] || '';
+      const externalCountry = record['External Country'] || record['External country'] || '';
+
+      const originCountry = userCountry || getCountryFromPhoneNumber(sourceNumber);
+      const destCountry = externalCountry || getCountryFromPhoneNumber(destNumber);
+
+      // Map call direction to call type
+      const callDirection = record['Call Direction'] || record['CallDirection'] || '';
+      let callType = record['Call type'] || record['Type'] || record['CallType'] || record['call_type'] || 'Outbound';
+      if (callDirection.toLowerCase() === 'inbound') {
+        callType = 'Inbound';
+      } else if (callDirection.toLowerCase() === 'outbound') {
+        callType = 'Outbound';
+      }
 
       await prisma.callRecord.create({
         data: {
-          userName: record['User'] || record['UserName'] || record['user_name'] || '',
-          userEmail: record['Email'] || record['UserEmail'] || record['user_email'] || '',
-          callDate: new Date(record['Date'] || record['CallDate'] || record['call_date'] || new Date()),
-          duration: parseInt(record['Duration'] || record['CallDuration'] || record['duration'] || '0'),
-          callType: record['Type'] || record['CallType'] || record['call_type'] || 'Outbound',
-          sourceNumber: sourceNumber,
+          userName: record['Display Name'] || record['User'] || record['UserName'] || record['user_name'] || '',
+          userEmail: record['UPN'] || record['Email'] || record['UserEmail'] || record['user_email'] || '',
+          callDate: new Date(record['Start time'] || record['Date'] || record['CallDate'] || record['call_date'] || new Date()),
+          duration,
+          callType,
+          sourceNumber,
           destination: destNumber,
-          originCountry: originCountry,
-          destCountry: destCountry,
+          originCountry,
+          destCountry,
           uploadedAt: new Date(),
         },
       });
@@ -78,7 +109,11 @@ router.post('/teams-report', upload.single('file'), async (req: AuthRequest, res
     // Clean up uploaded file
     fs.unlinkSync(filePath);
 
-    res.json({ message: 'File processed successfully', recordsProcessed: processed });
+    res.json({
+      message: 'File processed successfully',
+      recordsProcessed: processed,
+      recordsSkipped: skipped,
+    });
   } catch (error) {
     console.error('Upload error:', error);
     res.status(500).json({ error: 'Failed to process file' });
