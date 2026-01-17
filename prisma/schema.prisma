@@ -1,0 +1,50 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CallRecord {
+  id          Int      @id @default(autoincrement())
+  userName    String
+  userEmail   String
+  callDate    DateTime
+  duration    Int      // Duration in seconds
+  callType    String   // e.g., "domestic", "international", "tollfree"
+  destination String?
+  uploadedAt  DateTime @default(now())
+
+  @@index([userEmail])
+  @@index([callDate])
+}
+
+model RateMatrix {
+  id            Int      @id @default(autoincrement())
+  callType      String   @unique
+  ratePerMinute Decimal  @db.Decimal(10, 4)
+  description   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model UploadHistory {
+  id           Int      @id @default(autoincrement())
+  fileName     String
+  recordCount  Int
+  uploadedBy   String
+  uploadedAt   DateTime @default(now())
+  reportMonth  Int?
+  reportYear   Int?
+}
