@@ -256,6 +256,106 @@ router.get('/user/:email', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// Get user trend data (6-month history and YTD)
+router.get('/user/:email/trend', async (req: AuthRequest, res: Response) => {
+  try {
+    const email = req.params.email as string;
+    const rates = await prisma.rateMatrix.findMany();
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1;
+
+    // Get 6-month trend data
+    const monthlyData = [];
+    for (let i = 5; i >= 0; i--) {
+      let targetMonth = currentMonth - i;
+      let targetYear = currentYear;
+      if (targetMonth <= 0) {
+        targetMonth += 12;
+        targetYear -= 1;
+      }
+
+      const startDate = new Date(targetYear, targetMonth - 1, 1);
+      const endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59);
+
+      const calls = await prisma.callRecord.findMany({
+        where: {
+          userEmail: {
+            contains: email,
+            mode: 'insensitive',
+          },
+          callDate: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        select: {
+          duration: true,
+          originCountry: true,
+          destCountry: true,
+          callType: true,
+        },
+      });
+
+      let totalCost = 0;
+      for (const call of calls) {
+        const rate = await findRateForCall(rates, call.originCountry, call.destCountry, call.callType);
+        totalCost += (call.duration / 60) * rate;
+      }
+
+      monthlyData.push({
+        month: targetMonth,
+        year: targetYear,
+        monthName: startDate.toLocaleString('default', { month: 'short' }),
+        cost: Math.round(totalCost * 100) / 100,
+        calls: calls.length,
+        minutes: Math.round(calls.reduce((sum, c) => sum + c.duration, 0) / 60),
+      });
+    }
+
+    // Get YTD totals
+    const ytdStartDate = new Date(currentYear, 0, 1);
+    const ytdEndDate = new Date();
+
+    const ytdCalls = await prisma.callRecord.findMany({
+      where: {
+        userEmail: {
+          contains: email,
+          mode: 'insensitive',
+        },
+        callDate: {
+          gte: ytdStartDate,
+          lte: ytdEndDate,
+        },
+      },
+      select: {
+        duration: true,
+        originCountry: true,
+        destCountry: true,
+        callType: true,
+      },
+    });
+
+    let ytdCost = 0;
+    for (const call of ytdCalls) {
+      const rate = await findRateForCall(rates, call.originCountry, call.destCountry, call.callType);
+      ytdCost += (call.duration / 60) * rate;
+    }
+
+    res.json({
+      monthlyTrend: monthlyData,
+      ytd: {
+        year: currentYear,
+        totalCost: Math.round(ytdCost * 100) / 100,
+        totalCalls: ytdCalls.length,
+        totalMinutes: Math.round(ytdCalls.reduce((sum, c) => sum + c.duration, 0) / 60),
+      },
+    });
+  } catch (error) {
+    console.error('User trend error:', error);
+    res.status(500).json({ error: 'Failed to fetch user trend data' });
+  }
+});
+
 // Get monthly costs for current year (for chart)
 router.get('/monthly-costs', async (req: AuthRequest, res: Response) => {
   try {
