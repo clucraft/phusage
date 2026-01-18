@@ -34,7 +34,7 @@ export default function Layout({ children, onLogout, user }: LayoutProps) {
           <div className="flex justify-between h-16">
             <div className="flex">
               <div className="flex-shrink-0 flex items-center">
-                <span className="text-xl font-bold text-indigo-600 dark:text-indigo-400">Phusage</span>
+                <span className="text-xl font-bold text-indigo-600 dark:text-indigo-400">CallCulator</span>
               </div>
               <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
                 {navItems.map((item) => (

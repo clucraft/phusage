@@ -1,5 +1,5 @@
 {
-  "name": "phusage",
+  "name": "callculator",
   "version": "1.0.0",
   "description": "Microsoft Teams call usage tracking and billing application",
   "main": "dist/index.js",
