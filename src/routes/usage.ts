@@ -541,4 +541,141 @@ router.get('/top-destinations', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// Get location stats (aggregated by origin country)
+router.get('/locations', async (req: AuthRequest, res: Response) => {
+  try {
+    const { month, year } = req.query;
+    const rates = await prisma.rateMatrix.findMany();
+
+    let dateFilter = {};
+    if (month && year) {
+      const startDate = new Date(Number(year), Number(month) - 1, 1);
+      const endDate = new Date(Number(year), Number(month), 0, 23, 59, 59);
+      dateFilter = {
+        callDate: {
+          gte: startDate,
+          lte: endDate,
+        },
+      };
+    }
+
+    const calls = await prisma.callRecord.findMany({
+      where: dateFilter,
+      select: {
+        userEmail: true,
+        duration: true,
+        originCountry: true,
+        destCountry: true,
+        callType: true,
+      },
+    });
+
+    // Aggregate by origin country
+    const locationStats: Record<string, {
+      calls: number;
+      cost: number;
+      minutes: number;
+      users: Set<string>;
+    }> = {};
+
+    for (const call of calls) {
+      const origin = call.originCountry || 'Unknown';
+      if (!locationStats[origin]) {
+        locationStats[origin] = { calls: 0, cost: 0, minutes: 0, users: new Set() };
+      }
+
+      const rate = await findRateForCall(rates, call.originCountry, call.destCountry, call.callType);
+      const callCost = (call.duration / 60) * rate;
+
+      locationStats[origin].calls += 1;
+      locationStats[origin].cost += callCost;
+      locationStats[origin].minutes += call.duration / 60;
+      locationStats[origin].users.add(call.userEmail);
+    }
+
+    // Convert to array
+    const locations = Object.entries(locationStats).map(([country, stats]) => ({
+      country,
+      countryCode: getCountryCode(country),
+      calls: stats.calls,
+      cost: Math.round(stats.cost * 100) / 100,
+      minutes: Math.round(stats.minutes),
+      users: stats.users.size,
+    }));
+
+    // Sort by cost descending
+    locations.sort((a, b) => b.cost - a.cost);
+
+    res.json(locations);
+  } catch (error) {
+    console.error('Location stats error:', error);
+    res.status(500).json({ error: 'Failed to fetch location stats' });
+  }
+});
+
+// Helper to get ISO country code for map
+function getCountryCode(countryName: string): string {
+  const countryCodeMap: Record<string, string> = {
+    'USA': 'USA',
+    'United States': 'USA',
+    'United Kingdom': 'GBR',
+    'UK': 'GBR',
+    'Germany': 'DEU',
+    'France': 'FRA',
+    'Italy': 'ITA',
+    'Spain': 'ESP',
+    'Netherlands': 'NLD',
+    'Belgium': 'BEL',
+    'Switzerland': 'CHE',
+    'Austria': 'AUT',
+    'Sweden': 'SWE',
+    'Norway': 'NOR',
+    'Denmark': 'DNK',
+    'Finland': 'FIN',
+    'Ireland': 'IRL',
+    'Portugal': 'PRT',
+    'Poland': 'POL',
+    'Czech Republic': 'CZE',
+    'Hungary': 'HUN',
+    'Romania': 'ROU',
+    'Bulgaria': 'BGR',
+    'Greece': 'GRC',
+    'Turkey': 'TUR',
+    'Russia': 'RUS',
+    'Ukraine': 'UKR',
+    'Canada': 'CAN',
+    'Mexico': 'MEX',
+    'Brazil': 'BRA',
+    'Argentina': 'ARG',
+    'Chile': 'CHL',
+    'Colombia': 'COL',
+    'Peru': 'PER',
+    'Venezuela': 'VEN',
+    'China': 'CHN',
+    'Japan': 'JPN',
+    'South Korea': 'KOR',
+    'India': 'IND',
+    'Australia': 'AUS',
+    'New Zealand': 'NZL',
+    'Singapore': 'SGP',
+    'Hong Kong': 'HKG',
+    'Taiwan': 'TWN',
+    'Thailand': 'THA',
+    'Malaysia': 'MYS',
+    'Indonesia': 'IDN',
+    'Philippines': 'PHL',
+    'Vietnam': 'VNM',
+    'Israel': 'ISR',
+    'Saudi Arabia': 'SAU',
+    'UAE': 'ARE',
+    'United Arab Emirates': 'ARE',
+    'South Africa': 'ZAF',
+    'Egypt': 'EGY',
+    'Nigeria': 'NGA',
+    'Kenya': 'KEN',
+    'Morocco': 'MAR',
+  };
+  return countryCodeMap[countryName] || '';
+}
+
 export default router;

@@ -4,6 +4,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Upload from './pages/Upload';
 import UserSearch from './pages/UserSearch';
+import Locations from './pages/Locations';
 import Rates from './pages/Rates';
 import Admin from './pages/Admin';
 import Layout from './components/Layout';
@@ -62,6 +63,7 @@ function App() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/upload" element={<Upload />} />
         <Route path="/search" element={<UserSearch />} />
+        <Route path="/locations" element={<Locations />} />
         <Route path="/rates" element={<Rates />} />
         {user?.role === 'admin' && (
           <Route path="/admin" element={<Admin />} />

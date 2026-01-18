@@ -47,6 +47,8 @@ export const usageApi = {
     api.get('/usage/dashboard-stats', { params: { month, year } }),
   getTopDestinations: (month?: number, year?: number, limit?: number) =>
     api.get('/usage/top-destinations', { params: { month, year, limit } }),
+  getLocations: (month?: number, year?: number) =>
+    api.get('/usage/locations', { params: { month, year } }),
 };
 
 export const uploadApi = {
