@@ -163,6 +163,7 @@ router.get('/top10', async (req: AuthRequest, res: Response) => {
           userEmail: user.userEmail,
           userName: user.userName,
           totalMinutes: Math.round((user._sum.duration || 0) / 60),
+          totalCalls: userCalls.length,
           totalCost: Math.round(totalCost * 100) / 100,
         };
       })

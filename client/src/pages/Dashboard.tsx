@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   AreaChart, Area,
 } from 'recharts';
 import { usageApi, exportApi } from '../services/api';
@@ -39,7 +39,6 @@ interface TopDestination {
 
 export default function Dashboard() {
   const [top10, setTop10] = useState<UserUsage[]>([]);
-  const [summary, setSummary] = useState<UserUsage[]>([]);
   const [monthlyCosts, setMonthlyCosts] = useState<MonthlyCost[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [topDestinations, setTopDestinations] = useState<TopDestination[]>([]);
@@ -59,14 +58,12 @@ export default function Dashboard() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [top10Res, summaryRes, statsRes, destRes] = await Promise.all([
+      const [top10Res, statsRes, destRes] = await Promise.all([
         usageApi.getTop10(month, year),
-        usageApi.getSummary(month, year),
         usageApi.getDashboardStats(month, year),
         usageApi.getTopDestinations(month, year, 5),
       ]);
       setTop10(top10Res.data);
-      setSummary(summaryRes.data);
       setStats(statsRes.data);
       setTopDestinations(destRes.data.combined);
     } catch (error) {
@@ -327,65 +324,83 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Top 10 Users Chart */}
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Top 10 Users by Cost</h2>
+      {/* Top 10 Users Table */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden transition-colors">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Top 10 Users by Cost</h2>
+        </div>
         {loading ? (
-          <div className="h-80 flex items-center justify-center text-gray-500 dark:text-gray-400">Loading...</div>
+          <div className="p-6 text-center text-gray-500 dark:text-gray-400">Loading...</div>
         ) : top10.length === 0 ? (
-          <div className="h-80 flex items-center justify-center text-gray-500 dark:text-gray-400">
+          <div className="p-6 text-center text-gray-500 dark:text-gray-400">
             No data available. Upload a Teams report to get started.
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={top10} layout="vertical" margin={{ left: 100 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} horizontal={true} vertical={false} />
-              <XAxis type="number" tickFormatter={(value) => `$${value}`} stroke={chartColors.text} />
-              <YAxis type="category" dataKey="userName" width={100} stroke={chartColors.text} />
-              <Tooltip
-                formatter={(value: number) => [`$${value.toFixed(2)}`, 'Cost']}
-                contentStyle={{
-                  backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
-                  borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
-                  borderRadius: '8px',
-                }}
-              />
-              <Bar dataKey="totalCost" fill={chartColors.bar} radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    User
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Calls
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Minutes
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Cost
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-48">
+                    Cost Distribution
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                {top10.map((user, i) => (
+                  <tr key={user.userEmail} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold mr-3 ${
+                          i === 0 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                          i === 1 ? 'bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-200' :
+                          i === 2 ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' :
+                          'bg-gray-50 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                        }`}>
+                          {i + 1}
+                        </span>
+                        <div>
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">{user.userName}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">{user.userEmail}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white text-right">
+                      {user.totalCalls?.toLocaleString() || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white text-right">
+                      {user.totalMinutes.toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white text-right">
+                      ${user.totalCost.toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2.5">
+                        <div
+                          className="bg-gradient-to-r from-indigo-500 to-purple-500 h-2.5 rounded-full transition-all duration-500"
+                          style={{ width: `${top10[0]?.totalCost > 0 ? (user.totalCost / top10[0].totalCost) * 100 : 0}%` }}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
-      {/* Usage Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden transition-colors">
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">All Users</h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-700">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">User</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Email</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Minutes</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Calls</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Cost</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {summary.sort((a, b) => b.totalCost - a.totalCost).map((user, i) => (
-                <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{user.userName}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{user.userEmail}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white text-right">{user.totalMinutes.toLocaleString()}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white text-right">{user.totalCalls?.toLocaleString() || '-'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white text-right">${user.totalCost.toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
     </div>
   );
 }
