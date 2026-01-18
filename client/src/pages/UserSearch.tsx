@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { usageApi } from '../services/api';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, LineChart, Line, XAxis, YAxis } from 'recharts';
 import { useTheme } from '../hooks/useTheme';
@@ -48,17 +48,60 @@ type SortField = 'date' | 'duration' | 'cost' | 'destination' | 'destCountry';
 type SortDirection = 'asc' | 'desc';
 
 export default function UserSearch() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [month, setMonth] = useState<number>(new Date().getMonth() + 1);
-  const [year, setYear] = useState<number>(new Date().getFullYear());
-  const [userData, setUserData] = useState<UserData | null>(null);
-  const [trendData, setTrendData] = useState<TrendData | null>(null);
+  const [searchTerm, setSearchTerm] = useState(() => {
+    return sessionStorage.getItem('usersearch_term') || '';
+  });
+  const [month, setMonth] = useState<number>(() => {
+    const saved = sessionStorage.getItem('usersearch_month');
+    return saved ? parseInt(saved, 10) : new Date().getMonth() + 1;
+  });
+  const [year, setYear] = useState<number>(() => {
+    const saved = sessionStorage.getItem('usersearch_year');
+    return saved ? parseInt(saved, 10) : new Date().getFullYear();
+  });
+  const [userData, setUserData] = useState<UserData | null>(() => {
+    const saved = sessionStorage.getItem('usersearch_userData');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [trendData, setTrendData] = useState<TrendData | null>(() => {
+    const saved = sessionStorage.getItem('usersearch_trendData');
+    return saved ? JSON.parse(saved) : null;
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const { theme } = useTheme();
   const { formatCurrency, convertAmount, currency } = useCurrency();
+
+  // Persist filters and results to sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem('usersearch_term', searchTerm);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    sessionStorage.setItem('usersearch_month', String(month));
+  }, [month]);
+
+  useEffect(() => {
+    sessionStorage.setItem('usersearch_year', String(year));
+  }, [year]);
+
+  useEffect(() => {
+    if (userData) {
+      sessionStorage.setItem('usersearch_userData', JSON.stringify(userData));
+    } else {
+      sessionStorage.removeItem('usersearch_userData');
+    }
+  }, [userData]);
+
+  useEffect(() => {
+    if (trendData) {
+      sessionStorage.setItem('usersearch_trendData', JSON.stringify(trendData));
+    } else {
+      sessionStorage.removeItem('usersearch_trendData');
+    }
+  }, [trendData]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();

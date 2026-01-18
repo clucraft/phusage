@@ -44,10 +44,25 @@ export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [topDestinations, setTopDestinations] = useState<TopDestination[]>([]);
   const [loading, setLoading] = useState(true);
-  const [month, setMonth] = useState<number>(new Date().getMonth() + 1);
-  const [year, setYear] = useState<number>(new Date().getFullYear());
+  const [month, setMonth] = useState<number>(() => {
+    const saved = sessionStorage.getItem('dashboard_month');
+    return saved ? parseInt(saved, 10) : new Date().getMonth() + 1;
+  });
+  const [year, setYear] = useState<number>(() => {
+    const saved = sessionStorage.getItem('dashboard_year');
+    return saved ? parseInt(saved, 10) : new Date().getFullYear();
+  });
   const { theme } = useTheme();
   const { formatCurrency, convertAmount, currency } = useCurrency();
+
+  // Persist filters to sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem('dashboard_month', String(month));
+  }, [month]);
+
+  useEffect(() => {
+    sessionStorage.setItem('dashboard_year', String(year));
+  }, [year]);
 
   // Convert monthly costs for chart
   const convertedMonthlyCosts = useMemo(() => {
