@@ -256,26 +256,19 @@ router.get('/user/:email', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// Get user trend data (6-month history and YTD)
+// Get user trend data (12-month history and yearly totals)
 router.get('/user/:email/trend', async (req: AuthRequest, res: Response) => {
   try {
     const email = req.params.email as string;
+    const { year } = req.query;
     const rates = await prisma.rateMatrix.findMany();
-    const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().getMonth() + 1;
+    const selectedYear = year ? Number(year) : new Date().getFullYear();
 
-    // Get 6-month trend data
+    // Get 12-month trend data for the selected year
     const monthlyData = [];
-    for (let i = 5; i >= 0; i--) {
-      let targetMonth = currentMonth - i;
-      let targetYear = currentYear;
-      if (targetMonth <= 0) {
-        targetMonth += 12;
-        targetYear -= 1;
-      }
-
-      const startDate = new Date(targetYear, targetMonth - 1, 1);
-      const endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59);
+    for (let month = 1; month <= 12; month++) {
+      const startDate = new Date(selectedYear, month - 1, 1);
+      const endDate = new Date(selectedYear, month, 0, 23, 59, 59);
 
       const calls = await prisma.callRecord.findMany({
         where: {
@@ -303,8 +296,8 @@ router.get('/user/:email/trend', async (req: AuthRequest, res: Response) => {
       }
 
       monthlyData.push({
-        month: targetMonth,
-        year: targetYear,
+        month,
+        year: selectedYear,
         monthName: startDate.toLocaleString('default', { month: 'short' }),
         cost: Math.round(totalCost * 100) / 100,
         calls: calls.length,
@@ -312,19 +305,19 @@ router.get('/user/:email/trend', async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Get YTD totals
-    const ytdStartDate = new Date(currentYear, 0, 1);
-    const ytdEndDate = new Date();
+    // Get yearly totals for the selected year
+    const yearStartDate = new Date(selectedYear, 0, 1);
+    const yearEndDate = new Date(selectedYear, 11, 31, 23, 59, 59);
 
-    const ytdCalls = await prisma.callRecord.findMany({
+    const yearCalls = await prisma.callRecord.findMany({
       where: {
         userEmail: {
           contains: email,
           mode: 'insensitive',
         },
         callDate: {
-          gte: ytdStartDate,
-          lte: ytdEndDate,
+          gte: yearStartDate,
+          lte: yearEndDate,
         },
       },
       select: {
@@ -335,19 +328,19 @@ router.get('/user/:email/trend', async (req: AuthRequest, res: Response) => {
       },
     });
 
-    let ytdCost = 0;
-    for (const call of ytdCalls) {
+    let yearCost = 0;
+    for (const call of yearCalls) {
       const rate = await findRateForCall(rates, call.originCountry, call.destCountry, call.callType);
-      ytdCost += (call.duration / 60) * rate;
+      yearCost += (call.duration / 60) * rate;
     }
 
     res.json({
       monthlyTrend: monthlyData,
-      ytd: {
-        year: currentYear,
-        totalCost: Math.round(ytdCost * 100) / 100,
-        totalCalls: ytdCalls.length,
-        totalMinutes: Math.round(ytdCalls.reduce((sum, c) => sum + c.duration, 0) / 60),
+      yearTotal: {
+        year: selectedYear,
+        totalCost: Math.round(yearCost * 100) / 100,
+        totalCalls: yearCalls.length,
+        totalMinutes: Math.round(yearCalls.reduce((sum, c) => sum + c.duration, 0) / 60),
       },
     });
   } catch (error) {

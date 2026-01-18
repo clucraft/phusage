@@ -36,7 +36,7 @@ interface TrendMonth {
 
 interface TrendData {
   monthlyTrend: TrendMonth[];
-  ytd: {
+  yearTotal: {
     year: number;
     totalCost: number;
     totalCalls: number;
@@ -115,7 +115,7 @@ export default function UserSearch() {
     try {
       const [userResponse, trendResponse] = await Promise.all([
         usageApi.searchUser(searchTerm, month, year),
-        usageApi.getUserTrend(searchTerm),
+        usageApi.getUserTrend(searchTerm, year),
       ]);
       setUserData(userResponse.data);
       setTrendData(trendResponse.data);
@@ -362,35 +362,35 @@ export default function UserSearch() {
               </div>
             </div>
 
-            {/* YTD Totals */}
+            {/* Year Totals */}
             {trendData && (
               <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-6 rounded-lg shadow">
                 <h2 className="text-sm font-medium text-indigo-100 mb-1">
-                  {trendData.ytd.year} Year-to-Date
+                  {trendData.yearTotal.year} Year Total
                 </h2>
                 <p className="text-3xl font-bold text-white mb-4">
-                  {formatCurrency(trendData.ytd.totalCost)}
+                  {formatCurrency(trendData.yearTotal.totalCost)}
                 </p>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-xs text-indigo-200">Calls</p>
-                    <p className="text-lg font-semibold text-white">{trendData.ytd.totalCalls.toLocaleString()}</p>
+                    <p className="text-lg font-semibold text-white">{trendData.yearTotal.totalCalls.toLocaleString()}</p>
                   </div>
                   <div>
                     <p className="text-xs text-indigo-200">Minutes</p>
-                    <p className="text-lg font-semibold text-white">{trendData.ytd.totalMinutes.toLocaleString()}</p>
+                    <p className="text-lg font-semibold text-white">{trendData.yearTotal.totalMinutes.toLocaleString()}</p>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* 6-Month Trend Sparkline */}
+            {/* Annual Cost Trend */}
             {convertedTrendData && (
               <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
-                <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">6-Month Cost Trend</h2>
-                <ResponsiveContainer width="100%" height={100}>
+                <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">{year} Monthly Cost Trend</h2>
+                <ResponsiveContainer width="100%" height={120}>
                   <LineChart data={convertedTrendData.monthlyTrend}>
-                    <XAxis dataKey="monthName" tick={{ fontSize: 10, fill: theme === 'dark' ? '#9ca3af' : '#6b7280' }} axisLine={false} tickLine={false} />
+                    <XAxis dataKey="monthName" tick={{ fontSize: 9, fill: theme === 'dark' ? '#9ca3af' : '#6b7280' }} axisLine={false} tickLine={false} interval={0} />
                     <YAxis hide />
                     <Tooltip
                       formatter={(value: number) => [formatCurrency(value), 'Cost']}
