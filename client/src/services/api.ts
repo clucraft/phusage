@@ -37,10 +37,10 @@ export const usageApi = {
     api.get('/usage/summary', { params: { month, year } }),
   getTop10: (month?: number, year?: number) =>
     api.get('/usage/top10', { params: { month, year } }),
-  searchUser: (email: string, month?: number, year?: number) =>
-    api.get(`/usage/user/${encodeURIComponent(email)}`, { params: { month, year } }),
-  getUserTrend: (email: string, year?: number) =>
-    api.get(`/usage/user/${encodeURIComponent(email)}/trend`, { params: { year } }),
+  searchUser: (email: string, startDate?: string, endDate?: string) =>
+    api.get(`/usage/user/${encodeURIComponent(email)}`, { params: { startDate, endDate } }),
+  getUserTrend: (email: string, startDate?: string, endDate?: string) =>
+    api.get(`/usage/user/${encodeURIComponent(email)}/trend`, { params: { startDate, endDate } }),
   getMonthlyCosts: (year?: number) =>
     api.get('/usage/monthly-costs', { params: { year } }),
   getDashboardStats: (month?: number, year?: number) =>

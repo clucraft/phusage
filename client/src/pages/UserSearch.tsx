@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import { usageApi } from '../services/api';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, LineChart, Line, XAxis, YAxis } from 'recharts';
 import { useTheme } from '../hooks/useTheme';
@@ -29,6 +31,7 @@ interface TrendMonth {
   month: number;
   year: number;
   monthName: string;
+  label: string;
   cost: number;
   calls: number;
   minutes: number;
@@ -36,8 +39,9 @@ interface TrendMonth {
 
 interface TrendData {
   monthlyTrend: TrendMonth[];
-  yearTotal: {
-    year: number;
+  rangeTotal: {
+    startDate: string;
+    endDate: string;
     totalCost: number;
     totalCalls: number;
     totalMinutes: number;
@@ -46,18 +50,99 @@ interface TrendData {
 
 type SortField = 'date' | 'duration' | 'cost' | 'destination' | 'destCountry';
 type SortDirection = 'asc' | 'desc';
+type DatePreset = 'previousYear' | 'previousMonth' | 'thisMonth' | 'thisYear' | 'last30Days' | 'last90Days' | 'custom';
+
+// Helper to format date as YYYY-MM-DD
+const formatDateForApi = (date: Date): string => {
+  return date.toISOString().split('T')[0];
+};
+
+// Get date range for a preset
+const getPresetDateRange = (preset: DatePreset): { start: Date; end: Date } => {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  switch (preset) {
+    case 'previousYear': {
+      const lastYear = now.getFullYear() - 1;
+      return {
+        start: new Date(lastYear, 0, 1),
+        end: new Date(lastYear, 11, 31),
+      };
+    }
+    case 'previousMonth': {
+      const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastDayPrevMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+      return {
+        start: prevMonth,
+        end: lastDayPrevMonth,
+      };
+    }
+    case 'thisMonth': {
+      const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      return {
+        start: firstOfMonth,
+        end: today,
+      };
+    }
+    case 'thisYear': {
+      const firstOfYear = new Date(now.getFullYear(), 0, 1);
+      return {
+        start: firstOfYear,
+        end: today,
+      };
+    }
+    case 'last30Days': {
+      const thirtyDaysAgo = new Date(today);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      return {
+        start: thirtyDaysAgo,
+        end: today,
+      };
+    }
+    case 'last90Days': {
+      const ninetyDaysAgo = new Date(today);
+      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+      return {
+        start: ninetyDaysAgo,
+        end: today,
+      };
+    }
+    case 'custom':
+    default:
+      return {
+        start: new Date(now.getFullYear(), now.getMonth(), 1),
+        end: today,
+      };
+  }
+};
+
+const presetLabels: Record<DatePreset, string> = {
+  previousYear: 'Previous Year',
+  previousMonth: 'Previous Month',
+  thisMonth: 'This Month',
+  thisYear: 'This Year',
+  last30Days: 'Last 30 Days',
+  last90Days: 'Last 90 Days',
+  custom: 'Custom Range',
+};
 
 export default function UserSearch() {
   const [searchTerm, setSearchTerm] = useState(() => {
     return sessionStorage.getItem('usersearch_term') || '';
   });
-  const [month, setMonth] = useState<number>(() => {
-    const saved = sessionStorage.getItem('usersearch_month');
-    return saved ? parseInt(saved, 10) : new Date().getMonth() + 1;
+  const [preset, setPreset] = useState<DatePreset>(() => {
+    return (sessionStorage.getItem('usersearch_preset') as DatePreset) || 'thisMonth';
   });
-  const [year, setYear] = useState<number>(() => {
-    const saved = sessionStorage.getItem('usersearch_year');
-    return saved ? parseInt(saved, 10) : new Date().getFullYear();
+  const [startDate, setStartDate] = useState<Date>(() => {
+    const saved = sessionStorage.getItem('usersearch_startDate');
+    if (saved) return new Date(saved);
+    return getPresetDateRange('thisMonth').start;
+  });
+  const [endDate, setEndDate] = useState<Date>(() => {
+    const saved = sessionStorage.getItem('usersearch_endDate');
+    if (saved) return new Date(saved);
+    return getPresetDateRange('thisMonth').end;
   });
   const [userData, setUserData] = useState<UserData | null>(() => {
     const saved = sessionStorage.getItem('usersearch_userData');
@@ -80,12 +165,16 @@ export default function UserSearch() {
   }, [searchTerm]);
 
   useEffect(() => {
-    sessionStorage.setItem('usersearch_month', String(month));
-  }, [month]);
+    sessionStorage.setItem('usersearch_preset', preset);
+  }, [preset]);
 
   useEffect(() => {
-    sessionStorage.setItem('usersearch_year', String(year));
-  }, [year]);
+    sessionStorage.setItem('usersearch_startDate', startDate.toISOString());
+  }, [startDate]);
+
+  useEffect(() => {
+    sessionStorage.setItem('usersearch_endDate', endDate.toISOString());
+  }, [endDate]);
 
   useEffect(() => {
     if (userData) {
@@ -103,6 +192,31 @@ export default function UserSearch() {
     }
   }, [trendData]);
 
+  // Handle preset change
+  const handlePresetChange = (newPreset: DatePreset) => {
+    setPreset(newPreset);
+    if (newPreset !== 'custom') {
+      const range = getPresetDateRange(newPreset);
+      setStartDate(range.start);
+      setEndDate(range.end);
+    }
+  };
+
+  // When dates are manually changed, switch to custom
+  const handleStartDateChange = (date: Date | null) => {
+    if (date) {
+      setStartDate(date);
+      setPreset('custom');
+    }
+  };
+
+  const handleEndDateChange = (date: Date | null) => {
+    if (date) {
+      setEndDate(date);
+      setPreset('custom');
+    }
+  };
+
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchTerm.trim()) return;
@@ -113,9 +227,12 @@ export default function UserSearch() {
     setTrendData(null);
 
     try {
+      const startStr = formatDateForApi(startDate);
+      const endStr = formatDateForApi(endDate);
+
       const [userResponse, trendResponse] = await Promise.all([
-        usageApi.searchUser(searchTerm, month, year),
-        usageApi.getUserTrend(searchTerm, year),
+        usageApi.searchUser(searchTerm, startStr, endStr),
+        usageApi.getUserTrend(searchTerm, startStr, endStr),
       ]);
       setUserData(userResponse.data);
       setTrendData(trendResponse.data);
@@ -239,6 +356,12 @@ export default function UserSearch() {
     return <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>;
   };
 
+  // Format the date range for display
+  const formatDateRange = (): string => {
+    const options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' };
+    return `${startDate.toLocaleDateString('en-US', options)} - ${endDate.toLocaleDateString('en-US', options)}`;
+  };
+
   const exportToCSV = () => {
     if (!userData) return;
 
@@ -256,7 +379,7 @@ export default function UserSearch() {
 
     const csvContent = [
       `User: ${userData.userName} (${userData.userEmail})`,
-      `Period: ${months[month - 1]} ${year}`,
+      `Period: ${formatDateRange()}`,
       `Currency: ${currency}`,
       `Total: ${userData.totalCalls} calls, ${userData.totalMinutes} min, ${formatCurrency(userData.totalCost)}`,
       '',
@@ -268,16 +391,11 @@ export default function UserSearch() {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `${userData.userEmail}-${year}-${month}-${currency}.csv`);
+    link.setAttribute('download', `${userData.userEmail}-${formatDateForApi(startDate)}-to-${formatDateForApi(endDate)}-${currency}.csv`);
     document.body.appendChild(link);
     link.click();
     link.remove();
   };
-
-  const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
 
   const COLORS = ['#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#f97316', '#eab308'];
 
@@ -286,41 +404,66 @@ export default function UserSearch() {
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white">User Search</h1>
 
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
-        <form onSubmit={handleSearch} className="flex flex-wrap gap-4">
-          <div className="flex-1 min-w-[200px]">
-            <input
-              type="text"
-              placeholder="Search by email..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
-            />
+        <form onSubmit={handleSearch} className="space-y-4">
+          <div className="flex flex-wrap gap-4">
+            <div className="flex-1 min-w-[200px]">
+              <input
+                type="text"
+                placeholder="Search by email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+            >
+              {loading ? 'Searching...' : 'Search'}
+            </button>
           </div>
-          <select
-            value={month}
-            onChange={(e) => setMonth(Number(e.target.value))}
-            className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
-          >
-            {months.map((m, i) => (
-              <option key={i} value={i + 1}>{m}</option>
-            ))}
-          </select>
-          <select
-            value={year}
-            onChange={(e) => setYear(Number(e.target.value))}
-            className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
-          >
-            {[2024, 2025, 2026].map((y) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
-          <button
-            type="submit"
-            disabled={loading}
-            className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-          >
-            {loading ? 'Searching...' : 'Search'}
-          </button>
+
+          {/* Date Range Controls */}
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Date Range:</label>
+              <select
+                value={preset}
+                onChange={(e) => handlePresetChange(e.target.value as DatePreset)}
+                className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors text-sm"
+              >
+                {Object.entries(presetLabels).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <DatePicker
+                selected={startDate}
+                onChange={handleStartDateChange}
+                selectsStart
+                startDate={startDate}
+                endDate={endDate}
+                maxDate={endDate}
+                dateFormat="MMM d, yyyy"
+                className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors text-sm w-36"
+              />
+              <span className="text-gray-500 dark:text-gray-400">to</span>
+              <DatePicker
+                selected={endDate}
+                onChange={handleEndDateChange}
+                selectsEnd
+                startDate={startDate}
+                endDate={endDate}
+                minDate={startDate}
+                maxDate={new Date()}
+                dateFormat="MMM d, yyyy"
+                className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors text-sm w-36"
+              />
+            </div>
+          </div>
         </form>
       </div>
 
@@ -332,7 +475,7 @@ export default function UserSearch() {
 
       {userData && (
         <>
-          {/* User Summary + YTD + Trend */}
+          {/* User Summary + Range Total + Trend */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* User Summary */}
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
@@ -362,35 +505,41 @@ export default function UserSearch() {
               </div>
             </div>
 
-            {/* Year Totals */}
+            {/* Range Totals */}
             {trendData && (
               <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-6 rounded-lg shadow">
                 <h2 className="text-sm font-medium text-indigo-100 mb-1">
-                  {trendData.yearTotal.year} Year Total
+                  Range Total
                 </h2>
                 <p className="text-3xl font-bold text-white mb-4">
-                  {formatCurrency(trendData.yearTotal.totalCost)}
+                  {formatCurrency(trendData.rangeTotal.totalCost)}
                 </p>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-xs text-indigo-200">Calls</p>
-                    <p className="text-lg font-semibold text-white">{trendData.yearTotal.totalCalls.toLocaleString()}</p>
+                    <p className="text-lg font-semibold text-white">{trendData.rangeTotal.totalCalls.toLocaleString()}</p>
                   </div>
                   <div>
                     <p className="text-xs text-indigo-200">Minutes</p>
-                    <p className="text-lg font-semibold text-white">{trendData.yearTotal.totalMinutes.toLocaleString()}</p>
+                    <p className="text-lg font-semibold text-white">{trendData.rangeTotal.totalMinutes.toLocaleString()}</p>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Annual Cost Trend */}
+            {/* Cost Trend */}
             {convertedTrendData && (
               <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
-                <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">{year} Monthly Cost Trend</h2>
+                <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Monthly Cost Trend</h2>
                 <ResponsiveContainer width="100%" height={120}>
                   <LineChart data={convertedTrendData.monthlyTrend}>
-                    <XAxis dataKey="monthName" tick={{ fontSize: 9, fill: theme === 'dark' ? '#9ca3af' : '#6b7280' }} axisLine={false} tickLine={false} interval={0} />
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fontSize: 9, fill: theme === 'dark' ? '#9ca3af' : '#6b7280' }}
+                      axisLine={false}
+                      tickLine={false}
+                      interval="preserveStartEnd"
+                    />
                     <YAxis hide />
                     <Tooltip
                       formatter={(value: number) => [formatCurrency(value), 'Cost']}
