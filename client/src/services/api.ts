@@ -39,6 +39,12 @@ export const usageApi = {
     api.get('/usage/top10', { params: { month, year } }),
   searchUser: (email: string, month?: number, year?: number) =>
     api.get(`/usage/user/${encodeURIComponent(email)}`, { params: { month, year } }),
+  getMonthlyCosts: (year?: number) =>
+    api.get('/usage/monthly-costs', { params: { year } }),
+  getDashboardStats: (month?: number, year?: number) =>
+    api.get('/usage/dashboard-stats', { params: { month, year } }),
+  getTopDestinations: (month?: number, year?: number, limit?: number) =>
+    api.get('/usage/top-destinations', { params: { month, year, limit } }),
 };
 
 export const uploadApi = {

@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  AreaChart, Area,
+} from 'recharts';
 import { usageApi, exportApi } from '../services/api';
 import { useTheme } from '../hooks/useTheme';
 
@@ -11,9 +14,35 @@ interface UserUsage {
   totalCost: number;
 }
 
+interface MonthlyCost {
+  month: number;
+  monthName: string;
+  cost: number;
+  calls: number;
+}
+
+interface DashboardStats {
+  totalCost: number;
+  totalCalls: number;
+  totalMinutes: number;
+  uniqueUsers: number;
+  avgCostPerUser: number;
+  avgCostPerCall: number;
+}
+
+interface TopDestination {
+  country: string;
+  calls: number;
+  cost: number;
+  minutes: number;
+}
+
 export default function Dashboard() {
   const [top10, setTop10] = useState<UserUsage[]>([]);
   const [summary, setSummary] = useState<UserUsage[]>([]);
+  const [monthlyCosts, setMonthlyCosts] = useState<MonthlyCost[]>([]);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [topDestinations, setTopDestinations] = useState<TopDestination[]>([]);
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState<number>(new Date().getMonth() + 1);
   const [year, setYear] = useState<number>(new Date().getFullYear());
@@ -23,19 +52,36 @@ export default function Dashboard() {
     fetchData();
   }, [month, year]);
 
+  useEffect(() => {
+    fetchYearlyData();
+  }, [year]);
+
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [top10Res, summaryRes] = await Promise.all([
+      const [top10Res, summaryRes, statsRes, destRes] = await Promise.all([
         usageApi.getTop10(month, year),
         usageApi.getSummary(month, year),
+        usageApi.getDashboardStats(month, year),
+        usageApi.getTopDestinations(month, year, 5),
       ]);
       setTop10(top10Res.data);
       setSummary(summaryRes.data);
+      setStats(statsRes.data);
+      setTopDestinations(destRes.data.combined);
     } catch (error) {
       console.error('Failed to fetch data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchYearlyData = async () => {
+    try {
+      const monthlyRes = await usageApi.getMonthlyCosts(year);
+      setMonthlyCosts(monthlyRes.data);
+    } catch (error) {
+      console.error('Failed to fetch monthly costs:', error);
     }
   };
 
@@ -57,10 +103,6 @@ export default function Dashboard() {
     }
   };
 
-  const totalCost = summary.reduce((sum, u) => sum + u.totalCost, 0);
-  const totalMinutes = summary.reduce((sum, u) => sum + u.totalMinutes, 0);
-  const totalUsers = summary.length;
-
   const months = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
@@ -68,9 +110,14 @@ export default function Dashboard() {
 
   const chartColors = {
     bar: theme === 'dark' ? '#818cf8' : '#4f46e5',
-    text: theme === 'dark' ? '#e5e7eb' : '#374151',
+    text: theme === 'dark' ? '#9ca3af' : '#6b7280',
     grid: theme === 'dark' ? '#374151' : '#e5e7eb',
+    areaStroke: theme === 'dark' ? '#a78bfa' : '#7c3aed',
+    areaFill: theme === 'dark' ? 'url(#colorCostDark)' : 'url(#colorCost)',
   };
+
+  // Find max cost for progress bar calculation
+  const maxCost = topDestinations.length > 0 ? Math.max(...topDestinations.map(d => d.cost)) : 0;
 
   return (
     <div className="space-y-6">
@@ -110,23 +157,177 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Summary Cards */}
+      {/* Summary Cards - Row 1 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
           <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Cost</h3>
-          <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">${totalCost.toFixed(2)}</p>
+          <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
+            ${stats?.totalCost.toFixed(2) || '0.00'}
+          </p>
+        </div>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
+          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Calls</h3>
+          <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
+            {stats?.totalCalls.toLocaleString() || '0'}
+          </p>
         </div>
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
           <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Minutes</h3>
-          <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">{totalMinutes.toLocaleString()}</p>
-        </div>
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
-          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Users</h3>
-          <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">{totalUsers}</p>
+          <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
+            {stats?.totalMinutes.toLocaleString() || '0'}
+          </p>
         </div>
       </div>
 
-      {/* Top 10 Chart */}
+      {/* Summary Cards - Row 2 (Averages) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
+          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Users with Calls</h3>
+          <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
+            {stats?.uniqueUsers || '0'}
+          </p>
+        </div>
+        <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-6 rounded-lg shadow">
+          <h3 className="text-sm font-medium text-indigo-100">Avg Cost per User</h3>
+          <p className="mt-2 text-3xl font-bold text-white">
+            ${stats?.avgCostPerUser.toFixed(2) || '0.00'}
+          </p>
+        </div>
+        <div className="bg-gradient-to-br from-violet-500 to-fuchsia-600 p-6 rounded-lg shadow">
+          <h3 className="text-sm font-medium text-violet-100">Avg Cost per Call</h3>
+          <p className="mt-2 text-3xl font-bold text-white">
+            ${stats?.avgCostPerCall.toFixed(2) || '0.00'}
+          </p>
+        </div>
+      </div>
+
+      {/* Monthly Costs Chart */}
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+          {year} Monthly Costs
+        </h2>
+        {monthlyCosts.length === 0 ? (
+          <div className="h-72 flex items-center justify-center text-gray-500 dark:text-gray-400">
+            No data available
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={monthlyCosts} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="colorCost" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#7c3aed" stopOpacity={0.4}/>
+                  <stop offset="95%" stopColor="#7c3aed" stopOpacity={0.05}/>
+                </linearGradient>
+                <linearGradient id="colorCostDark" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#a78bfa" stopOpacity={0.5}/>
+                  <stop offset="95%" stopColor="#a78bfa" stopOpacity={0.05}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />
+              <XAxis
+                dataKey="monthName"
+                stroke={chartColors.text}
+                tick={{ fill: chartColors.text, fontSize: 12 }}
+                axisLine={{ stroke: chartColors.grid }}
+              />
+              <YAxis
+                tickFormatter={(value) => `$${value}`}
+                stroke={chartColors.text}
+                tick={{ fill: chartColors.text, fontSize: 12 }}
+                axisLine={{ stroke: chartColors.grid }}
+              />
+              <Tooltip
+                formatter={(value: number) => [`$${value.toFixed(2)}`, 'Cost']}
+                contentStyle={{
+                  backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
+                  borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                }}
+                labelStyle={{ color: theme === 'dark' ? '#f3f4f6' : '#111827', fontWeight: 600 }}
+                itemStyle={{ color: theme === 'dark' ? '#c4b5fd' : '#7c3aed' }}
+              />
+              <Area
+                type="monotone"
+                dataKey="cost"
+                stroke={chartColors.areaStroke}
+                strokeWidth={3}
+                fill={chartColors.areaFill}
+                dot={{ fill: chartColors.areaStroke, strokeWidth: 2, r: 4 }}
+                activeDot={{ r: 6, stroke: chartColors.areaStroke, strokeWidth: 2, fill: '#fff' }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      {/* Top Destinations Table */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden transition-colors">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Top 5 Destinations</h2>
+        </div>
+        {topDestinations.length === 0 ? (
+          <div className="p-6 text-center text-gray-500 dark:text-gray-400">
+            No destination data available
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Country
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Calls
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Cost
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-48">
+                    Cost Distribution
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                {topDestinations.map((dest, i) => (
+                  <tr key={dest.country} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold mr-3 ${
+                          i === 0 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                          i === 1 ? 'bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-200' :
+                          i === 2 ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' :
+                          'bg-gray-50 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                        }`}>
+                          {i + 1}
+                        </span>
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{dest.country}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white text-right">
+                      {dest.calls.toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white text-right">
+                      ${dest.cost.toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2.5">
+                        <div
+                          className="bg-gradient-to-r from-indigo-500 to-purple-500 h-2.5 rounded-full transition-all duration-500"
+                          style={{ width: `${maxCost > 0 ? (dest.cost / maxCost) * 100 : 0}%` }}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Top 10 Users Chart */}
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Top 10 Users by Cost</h2>
         {loading ? (
@@ -138,7 +339,7 @@ export default function Dashboard() {
         ) : (
           <ResponsiveContainer width="100%" height={400}>
             <BarChart data={top10} layout="vertical" margin={{ left: 100 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
+              <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} horizontal={true} vertical={false} />
               <XAxis type="number" tickFormatter={(value) => `$${value}`} stroke={chartColors.text} />
               <YAxis type="category" dataKey="userName" width={100} stroke={chartColors.text} />
               <Tooltip
@@ -146,10 +347,10 @@ export default function Dashboard() {
                 contentStyle={{
                   backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
                   borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
-                  color: theme === 'dark' ? '#ffffff' : '#000000',
+                  borderRadius: '8px',
                 }}
               />
-              <Bar dataKey="totalCost" fill={chartColors.bar} />
+              <Bar dataKey="totalCost" fill={chartColors.bar} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}

@@ -255,4 +255,189 @@ router.get('/user/:email', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// Get monthly costs for current year (for chart)
+router.get('/monthly-costs', async (req: AuthRequest, res: Response) => {
+  try {
+    const year = req.query.year ? Number(req.query.year) : new Date().getFullYear();
+    const rates = await prisma.rateMatrix.findMany();
+
+    const monthlyCosts = [];
+
+    for (let month = 1; month <= 12; month++) {
+      const startDate = new Date(year, month - 1, 1);
+      const endDate = new Date(year, month, 0, 23, 59, 59);
+
+      const calls = await prisma.callRecord.findMany({
+        where: {
+          callDate: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        select: {
+          duration: true,
+          originCountry: true,
+          destCountry: true,
+          callType: true,
+        },
+      });
+
+      let totalCost = 0;
+      for (const call of calls) {
+        const rate = await findRateForCall(rates, call.originCountry, call.destCountry, call.callType);
+        totalCost += (call.duration / 60) * rate;
+      }
+
+      monthlyCosts.push({
+        month,
+        monthName: startDate.toLocaleString('default', { month: 'short' }),
+        cost: Math.round(totalCost * 100) / 100,
+        calls: calls.length,
+      });
+    }
+
+    res.json(monthlyCosts);
+  } catch (error) {
+    console.error('Monthly costs error:', error);
+    res.status(500).json({ error: 'Failed to fetch monthly costs' });
+  }
+});
+
+// Get dashboard stats (averages, totals)
+router.get('/dashboard-stats', async (req: AuthRequest, res: Response) => {
+  try {
+    const { month, year } = req.query;
+    const rates = await prisma.rateMatrix.findMany();
+
+    let dateFilter = {};
+    if (month && year) {
+      const startDate = new Date(Number(year), Number(month) - 1, 1);
+      const endDate = new Date(Number(year), Number(month), 0, 23, 59, 59);
+      dateFilter = {
+        callDate: {
+          gte: startDate,
+          lte: endDate,
+        },
+      };
+    }
+
+    const calls = await prisma.callRecord.findMany({
+      where: dateFilter,
+      select: {
+        userEmail: true,
+        duration: true,
+        originCountry: true,
+        destCountry: true,
+        callType: true,
+      },
+    });
+
+    // Calculate total cost
+    let totalCost = 0;
+    for (const call of calls) {
+      const rate = await findRateForCall(rates, call.originCountry, call.destCountry, call.callType);
+      totalCost += (call.duration / 60) * rate;
+    }
+
+    // Count unique users
+    const uniqueUsers = new Set(calls.map(c => c.userEmail)).size;
+
+    // Calculate totals
+    const totalCalls = calls.length;
+    const totalMinutes = calls.reduce((sum, c) => sum + c.duration, 0) / 60;
+
+    res.json({
+      totalCost: Math.round(totalCost * 100) / 100,
+      totalCalls,
+      totalMinutes: Math.round(totalMinutes),
+      uniqueUsers,
+      avgCostPerUser: uniqueUsers > 0 ? Math.round((totalCost / uniqueUsers) * 100) / 100 : 0,
+      avgCostPerCall: totalCalls > 0 ? Math.round((totalCost / totalCalls) * 100) / 100 : 0,
+    });
+  } catch (error) {
+    console.error('Dashboard stats error:', error);
+    res.status(500).json({ error: 'Failed to fetch dashboard stats' });
+  }
+});
+
+// Get top destinations by cost and volume
+router.get('/top-destinations', async (req: AuthRequest, res: Response) => {
+  try {
+    const { month, year, limit = '5' } = req.query;
+    const rates = await prisma.rateMatrix.findMany();
+    const limitNum = parseInt(limit as string);
+
+    let dateFilter = {};
+    if (month && year) {
+      const startDate = new Date(Number(year), Number(month) - 1, 1);
+      const endDate = new Date(Number(year), Number(month), 0, 23, 59, 59);
+      dateFilter = {
+        callDate: {
+          gte: startDate,
+          lte: endDate,
+        },
+      };
+    }
+
+    const calls = await prisma.callRecord.findMany({
+      where: dateFilter,
+      select: {
+        duration: true,
+        originCountry: true,
+        destCountry: true,
+        callType: true,
+      },
+    });
+
+    // Aggregate by destination country
+    const destStats: Record<string, { calls: number; cost: number; minutes: number }> = {};
+
+    for (const call of calls) {
+      const dest = call.destCountry || 'Unknown';
+      if (!destStats[dest]) {
+        destStats[dest] = { calls: 0, cost: 0, minutes: 0 };
+      }
+
+      const rate = await findRateForCall(rates, call.originCountry, call.destCountry, call.callType);
+      const callCost = (call.duration / 60) * rate;
+
+      destStats[dest].calls += 1;
+      destStats[dest].cost += callCost;
+      destStats[dest].minutes += call.duration / 60;
+    }
+
+    // Convert to array and sort
+    const destinations = Object.entries(destStats).map(([country, stats]) => ({
+      country,
+      calls: stats.calls,
+      cost: Math.round(stats.cost * 100) / 100,
+      minutes: Math.round(stats.minutes),
+    }));
+
+    // Get top by cost
+    const topByCost = [...destinations]
+      .sort((a, b) => b.cost - a.cost)
+      .slice(0, limitNum);
+
+    // Get top by volume
+    const topByVolume = [...destinations]
+      .sort((a, b) => b.calls - a.calls)
+      .slice(0, limitNum);
+
+    // For Option C, we need a combined view - sort by cost for the table
+    const combined = [...destinations]
+      .sort((a, b) => b.cost - a.cost)
+      .slice(0, limitNum);
+
+    res.json({
+      topByCost,
+      topByVolume,
+      combined,
+    });
+  } catch (error) {
+    console.error('Top destinations error:', error);
+    res.status(500).json({ error: 'Failed to fetch top destinations' });
+  }
+});
+
 export default router;
