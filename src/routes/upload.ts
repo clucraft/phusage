@@ -43,6 +43,13 @@ router.post('/teams-report', upload.single('file'), async (req: AuthRequest, res
     let skipped = 0;
 
     for (const record of records) {
+      // Only process Outbound calls
+      const callDirection = (record['Call Direction'] || record['CallDirection'] || '').toLowerCase();
+      if (callDirection && callDirection !== 'outbound') {
+        skipped++;
+        continue;
+      }
+
       // Skip failed calls
       const success = record['Success'] || record['success'] || '';
       if (success.toLowerCase() === 'no' || success === '0' || success === 'false') {
@@ -59,25 +66,13 @@ router.post('/teams-report', upload.single('file'), async (req: AuthRequest, res
         continue;
       }
 
-      // Map Teams PSTN export columns (with fallbacks for other formats)
+      // Get phone numbers
       const sourceNumber = record['Caller Number'] || record['Source'] || record['SourceNumber'] || record['From'] || '';
       const destNumber = record['Callee Number'] || record['Destination'] || record['ToNumber'] || record['To'] || '';
 
-      // Use provided country fields, fall back to phone number parsing
-      const userCountry = record['User country'] || record['User Country'] || '';
-      const externalCountry = record['External Country'] || record['External country'] || '';
-
-      const originCountry = userCountry || getCountryFromPhoneNumber(sourceNumber);
-      const destCountry = externalCountry || getCountryFromPhoneNumber(destNumber);
-
-      // Map call direction to call type
-      const callDirection = record['Call Direction'] || record['CallDirection'] || '';
-      let callType = record['Call type'] || record['Type'] || record['CallType'] || record['call_type'] || 'Outbound';
-      if (callDirection.toLowerCase() === 'inbound') {
-        callType = 'Inbound';
-      } else if (callDirection.toLowerCase() === 'outbound') {
-        callType = 'Outbound';
-      }
+      // Parse countries from phone number country codes (matches Verizon rate naming)
+      const originCountry = getCountryFromPhoneNumber(sourceNumber);
+      const destCountry = getCountryFromPhoneNumber(destNumber);
 
       await prisma.callRecord.create({
         data: {
@@ -85,7 +80,7 @@ router.post('/teams-report', upload.single('file'), async (req: AuthRequest, res
           userEmail: record['UPN'] || record['Email'] || record['UserEmail'] || record['user_email'] || '',
           callDate: new Date(record['Start time'] || record['Date'] || record['CallDate'] || record['call_date'] || new Date()),
           duration,
-          callType,
+          callType: 'Outbound',
           sourceNumber,
           destination: destNumber,
           originCountry,

@@ -232,6 +232,7 @@ router.get('/user/:email', async (req: AuthRequest, res: Response) => {
         date: call.callDate,
         duration: call.duration,
         type: call.callType,
+        sourceNumber: call.sourceNumber,
         destination: call.destination,
         originCountry: call.originCountry,
         destCountry: call.destCountry,
