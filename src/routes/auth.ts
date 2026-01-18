@@ -106,7 +106,11 @@ router.post('/login', async (req: Request, res: Response) => {
       return;
     }
 
-    const secret = process.env.JWT_SECRET || 'your-secret-key';
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      res.status(500).json({ error: 'Server configuration error' });
+      return;
+    }
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       secret,

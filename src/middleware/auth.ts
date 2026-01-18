@@ -22,7 +22,11 @@ export function authenticateToken(
     return;
   }
 
-  const secret = process.env.JWT_SECRET || 'your-secret-key';
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    res.status(500).json({ error: 'Server configuration error' });
+    return;
+  }
 
   jwt.verify(token, secret, (err, decoded) => {
     if (err) {
