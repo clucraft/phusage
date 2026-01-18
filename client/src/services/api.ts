@@ -92,6 +92,23 @@ export const exportApi = {
     api.get('/export/pdf', { params: { month, year }, responseType: 'blob' }),
 };
 
+export const estimatorApi = {
+  getTemplates: (year?: number) =>
+    api.get('/estimator/templates', { params: { year } }),
+  getYears: () => api.get('/estimator/years'),
+  getTemplateData: (country: string, year?: number) =>
+    api.get(`/estimator/template/${encodeURIComponent(country)}`, { params: { year } }),
+  getDestinations: () => api.get('/estimator/destinations'),
+  getOrigins: () => api.get('/estimator/origins'),
+  calculate: (data: {
+    originCountry: string;
+    userCount: number;
+    callsPerUserPerMonth: number;
+    avgMinutesPerCall: number;
+    destinations: Array<{ country: string; percentage: number }>;
+  }) => api.post('/estimator/calculate', data),
+};
+
 export const adminApi = {
   getUsers: () => api.get('/admin/users'),
   createUser: (email: string, password: string, name: string, role: string) =>

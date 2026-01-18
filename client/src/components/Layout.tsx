@@ -27,6 +27,7 @@ export default function Layout({ children, onLogout, user }: LayoutProps) {
     { path: '/search', label: 'User Search' },
     { path: '/locations', label: 'Locations' },
     { path: '/rates', label: 'Rates' },
+    { path: '/estimator', label: 'Estimator' },
     ...(user?.role === 'admin' ? [{ path: '/admin', label: 'Admin' }] : []),
   ];
 

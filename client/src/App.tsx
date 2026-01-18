@@ -6,6 +6,7 @@ import Upload from './pages/Upload';
 import UserSearch from './pages/UserSearch';
 import Locations from './pages/Locations';
 import Rates from './pages/Rates';
+import CostEstimator from './pages/CostEstimator';
 import Admin from './pages/Admin';
 import Layout from './components/Layout';
 
@@ -65,6 +66,7 @@ function App() {
         <Route path="/search" element={<UserSearch />} />
         <Route path="/locations" element={<Locations />} />
         <Route path="/rates" element={<Rates />} />
+        <Route path="/estimator" element={<CostEstimator />} />
         {user?.role === 'admin' && (
           <Route path="/admin" element={<Admin />} />
         )}
