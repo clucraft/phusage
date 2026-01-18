@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   AreaChart, Area,
 } from 'recharts';
 import { usageApi, exportApi } from '../services/api';
 import { useTheme } from '../hooks/useTheme';
+import { useCurrency } from '../hooks/useCurrency';
 
 interface UserUsage {
   userName: string;
@@ -46,6 +47,15 @@ export default function Dashboard() {
   const [month, setMonth] = useState<number>(new Date().getMonth() + 1);
   const [year, setYear] = useState<number>(new Date().getFullYear());
   const { theme } = useTheme();
+  const { formatCurrency, convertAmount, currency } = useCurrency();
+
+  // Convert monthly costs for chart
+  const convertedMonthlyCosts = useMemo(() => {
+    return monthlyCosts.map(m => ({
+      ...m,
+      cost: convertAmount(m.cost),
+    }));
+  }, [monthlyCosts, convertAmount]);
 
   useEffect(() => {
     fetchData();
@@ -159,7 +169,7 @@ export default function Dashboard() {
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
           <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Cost</h3>
           <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
-            ${stats?.totalCost.toFixed(2) || '0.00'}
+            {formatCurrency(stats?.totalCost || 0)}
           </p>
         </div>
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
@@ -187,13 +197,13 @@ export default function Dashboard() {
         <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-6 rounded-lg shadow">
           <h3 className="text-sm font-medium text-indigo-100">Avg Cost per User</h3>
           <p className="mt-2 text-3xl font-bold text-white">
-            ${stats?.avgCostPerUser.toFixed(2) || '0.00'}
+            {formatCurrency(stats?.avgCostPerUser || 0)}
           </p>
         </div>
         <div className="bg-gradient-to-br from-violet-500 to-fuchsia-600 p-6 rounded-lg shadow">
           <h3 className="text-sm font-medium text-violet-100">Avg Cost per Call</h3>
           <p className="mt-2 text-3xl font-bold text-white">
-            ${stats?.avgCostPerCall.toFixed(2) || '0.00'}
+            {formatCurrency(stats?.avgCostPerCall || 0)}
           </p>
         </div>
       </div>
@@ -203,13 +213,13 @@ export default function Dashboard() {
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
           {year} Monthly Costs
         </h2>
-        {monthlyCosts.length === 0 ? (
+        {convertedMonthlyCosts.length === 0 ? (
           <div className="h-72 flex items-center justify-center text-gray-500 dark:text-gray-400">
             No data available
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={monthlyCosts} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+            <AreaChart data={convertedMonthlyCosts} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="colorCost" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#7c3aed" stopOpacity={0.4}/>
@@ -228,13 +238,13 @@ export default function Dashboard() {
                 axisLine={{ stroke: chartColors.grid }}
               />
               <YAxis
-                tickFormatter={(value) => `$${value}`}
+                tickFormatter={(value) => `${currency === 'CHF' ? 'CHF ' : '$'}${value}`}
                 stroke={chartColors.text}
                 tick={{ fill: chartColors.text, fontSize: 12 }}
                 axisLine={{ stroke: chartColors.grid }}
               />
               <Tooltip
-                formatter={(value: number) => [`$${value.toFixed(2)}`, 'Cost']}
+                formatter={(value: number) => [formatCurrency(value), 'Cost']}
                 contentStyle={{
                   backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
                   borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
@@ -306,7 +316,7 @@ export default function Dashboard() {
                       {dest.calls.toLocaleString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white text-right">
-                      ${dest.cost.toFixed(2)}
+                      {formatCurrency(dest.cost)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2.5">
@@ -383,7 +393,7 @@ export default function Dashboard() {
                       {user.totalMinutes.toLocaleString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white text-right">
-                      ${user.totalCost.toFixed(2)}
+                      {formatCurrency(user.totalCost)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2.5">

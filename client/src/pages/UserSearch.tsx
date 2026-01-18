@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { usageApi } from '../services/api';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, LineChart, Line, XAxis, YAxis } from 'recharts';
 import { useTheme } from '../hooks/useTheme';
+import { useCurrency } from '../hooks/useCurrency';
 
 interface UserCall {
   date: string;
@@ -57,6 +58,7 @@ export default function UserSearch() {
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const { theme } = useTheme();
+  const { formatCurrency, convertAmount, currency } = useCurrency();
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,7 +120,7 @@ export default function UserSearch() {
     });
   }, [userData, sortField, sortDirection]);
 
-  // Calculate cost by destination
+  // Calculate cost by destination (converted)
   const costByDestination = useMemo(() => {
     if (!userData) return [];
     const destCosts: Record<string, number> = {};
@@ -127,10 +129,10 @@ export default function UserSearch() {
       destCosts[dest] = (destCosts[dest] || 0) + call.cost;
     }
     return Object.entries(destCosts)
-      .map(([country, cost]) => ({ country, cost: Math.round(cost * 100) / 100 }))
+      .map(([country, cost]) => ({ country, cost: Math.round(convertAmount(cost) * 100) / 100 }))
       .sort((a, b) => b.cost - a.cost)
       .slice(0, 8);
-  }, [userData]);
+  }, [userData, convertAmount]);
 
   // Calculate top 5 numbers called (by frequency)
   const topNumbersCalled = useMemo(() => {
@@ -150,7 +152,7 @@ export default function UserSearch() {
       .slice(0, 5);
   }, [userData]);
 
-  // Calculate costliest numbers
+  // Calculate costliest numbers (converted)
   const costliestNumbers = useMemo(() => {
     if (!userData) return [];
     const numberCosts: Record<string, { cost: number; count: number; country: string | null }> = {};
@@ -163,10 +165,22 @@ export default function UserSearch() {
       numberCosts[num].count += 1;
     }
     return Object.entries(numberCosts)
-      .map(([number, data]) => ({ number, ...data, cost: Math.round(data.cost * 100) / 100 }))
+      .map(([number, data]) => ({ number, ...data, cost: Math.round(convertAmount(data.cost) * 100) / 100 }))
       .sort((a, b) => b.cost - a.cost)
       .slice(0, 5);
-  }, [userData]);
+  }, [userData, convertAmount]);
+
+  // Convert trend data for chart
+  const convertedTrendData = useMemo(() => {
+    if (!trendData) return null;
+    return {
+      ...trendData,
+      monthlyTrend: trendData.monthlyTrend.map(m => ({
+        ...m,
+        cost: convertAmount(m.cost),
+      })),
+    };
+  }, [trendData, convertAmount]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -185,7 +199,7 @@ export default function UserSearch() {
   const exportToCSV = () => {
     if (!userData) return;
 
-    const headers = ['Date', 'From', 'Origin Country', 'To', 'Destination Country', 'Duration (min)', 'Rate', 'Cost'];
+    const headers = ['Date', 'From', 'Origin Country', 'To', 'Destination Country', 'Duration (min)', 'Rate', `Cost (${currency})`];
     const rows = userData.calls.map(call => [
       new Date(call.date).toLocaleDateString(),
       call.sourceNumber || '',
@@ -193,14 +207,15 @@ export default function UserSearch() {
       call.destination || '',
       call.destCountry || '',
       Math.round(call.duration / 60),
-      call.rate.toFixed(4),
-      call.cost.toFixed(2),
+      convertAmount(call.rate).toFixed(4),
+      convertAmount(call.cost).toFixed(2),
     ]);
 
     const csvContent = [
       `User: ${userData.userName} (${userData.userEmail})`,
       `Period: ${months[month - 1]} ${year}`,
-      `Total: ${userData.totalCalls} calls, ${userData.totalMinutes} min, $${userData.totalCost.toFixed(2)}`,
+      `Currency: ${currency}`,
+      `Total: ${userData.totalCalls} calls, ${userData.totalMinutes} min, ${formatCurrency(userData.totalCost)}`,
       '',
       headers.join(','),
       ...rows.map(row => row.join(',')),
@@ -210,7 +225,7 @@ export default function UserSearch() {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `${userData.userEmail}-${year}-${month}.csv`);
+    link.setAttribute('download', `${userData.userEmail}-${year}-${month}-${currency}.csv`);
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -298,7 +313,7 @@ export default function UserSearch() {
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-500 dark:text-gray-400">Total Cost</span>
                   <span className="text-lg font-bold text-gray-900 dark:text-white">
-                    ${userData.totalCost.toFixed(2)}
+                    {formatCurrency(userData.totalCost)}
                   </span>
                 </div>
               </div>
@@ -311,7 +326,7 @@ export default function UserSearch() {
                   {trendData.ytd.year} Year-to-Date
                 </h2>
                 <p className="text-3xl font-bold text-white mb-4">
-                  ${trendData.ytd.totalCost.toFixed(2)}
+                  {formatCurrency(trendData.ytd.totalCost)}
                 </p>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -327,15 +342,15 @@ export default function UserSearch() {
             )}
 
             {/* 6-Month Trend Sparkline */}
-            {trendData && (
+            {convertedTrendData && (
               <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
                 <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">6-Month Cost Trend</h2>
                 <ResponsiveContainer width="100%" height={100}>
-                  <LineChart data={trendData.monthlyTrend}>
+                  <LineChart data={convertedTrendData.monthlyTrend}>
                     <XAxis dataKey="monthName" tick={{ fontSize: 10, fill: theme === 'dark' ? '#9ca3af' : '#6b7280' }} axisLine={false} tickLine={false} />
                     <YAxis hide />
                     <Tooltip
-                      formatter={(value: number) => [`$${value.toFixed(2)}`, 'Cost']}
+                      formatter={(value: number) => [formatCurrency(value), 'Cost']}
                       contentStyle={{
                         backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
                         borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
@@ -384,7 +399,7 @@ export default function UserSearch() {
                         ))}
                       </Pie>
                       <Tooltip
-                        formatter={(value: number) => `$${value.toFixed(2)}`}
+                        formatter={(value: number) => formatCurrency(value)}
                         contentStyle={{
                           backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
                           borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
@@ -401,7 +416,7 @@ export default function UserSearch() {
                           style={{ backgroundColor: COLORS[index % COLORS.length] }}
                         />
                         <span className="text-gray-600 dark:text-gray-400 truncate flex-1">{item.country}</span>
-                        <span className="text-gray-900 dark:text-white font-medium ml-1">${item.cost.toFixed(2)}</span>
+                        <span className="text-gray-900 dark:text-white font-medium ml-1">{currency === 'CHF' ? `CHF ${item.cost.toFixed(2)}` : `$${item.cost.toFixed(2)}`}</span>
                       </div>
                     ))}
                   </div>
@@ -459,7 +474,7 @@ export default function UserSearch() {
                         </div>
                       </div>
                       <span className="text-sm font-semibold text-red-600 dark:text-red-400 ml-2">
-                        ${item.cost.toFixed(2)}
+                        {currency === 'CHF' ? `CHF ${item.cost.toFixed(2)}` : `$${item.cost.toFixed(2)}`}
                       </span>
                     </div>
                   ))}
@@ -546,10 +561,10 @@ export default function UserSearch() {
                         {Math.round(call.duration / 60)} min
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-right font-mono">
-                        {call.rate > 0 ? `$${call.rate.toFixed(4)}` : '-'}
+                        {call.rate > 0 ? (currency === 'CHF' ? `CHF ${convertAmount(call.rate).toFixed(4)}` : `$${call.rate.toFixed(4)}`) : '-'}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white text-right font-semibold">
-                        ${call.cost.toFixed(2)}
+                        {formatCurrency(call.cost)}
                       </td>
                     </tr>
                   ))}

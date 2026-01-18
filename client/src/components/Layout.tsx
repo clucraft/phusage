@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { ReactNode } from 'react';
 import { useTheme } from '../hooks/useTheme';
+import { useCurrency } from '../hooks/useCurrency';
 
 interface User {
   id: number;
@@ -18,6 +19,7 @@ interface LayoutProps {
 export default function Layout({ children, onLogout, user }: LayoutProps) {
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
+  const { currency, toggleCurrency } = useCurrency();
 
   const navItems = [
     { path: '/', label: 'Dashboard' },
@@ -61,6 +63,14 @@ export default function Layout({ children, onLogout, user }: LayoutProps) {
                   </span>
                 )}
               </span>
+              <button
+                onClick={toggleCurrency}
+                className="px-2 py-1 rounded-md text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200 border border-gray-300 dark:border-gray-600"
+                aria-label="Toggle currency"
+                title={`Switch to ${currency === 'USD' ? 'CHF' : 'USD'}`}
+              >
+                {currency}
+              </button>
               <button
                 onClick={toggleTheme}
                 className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"

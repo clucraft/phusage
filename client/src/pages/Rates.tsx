@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { ratesApi, uploadApi } from '../services/api';
+import { useCurrency } from '../hooks/useCurrency';
 
 interface Rate {
   id: number;
@@ -24,6 +25,7 @@ interface Pagination {
 }
 
 export default function Rates() {
+  const { currency, convertAmount } = useCurrency();
   const [rates, setRates] = useState<Rate[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 100, total: 0, pages: 0 });
   const [stats, setStats] = useState<RateStats | null>(null);
@@ -326,7 +328,7 @@ export default function Rates() {
               </select>
             </div>
             <div className="w-32">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Price/Min ($)</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Price/Min ({currency})</label>
               <input
                 type="number"
                 step="0.0001"
@@ -414,7 +416,7 @@ export default function Rates() {
                       {rate.callType}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white text-right font-mono">
-                      ${Number(rate.pricePerMinute).toFixed(4)}
+                      {currency === 'USD' ? '$' : 'CHF '}{convertAmount(Number(rate.pricePerMinute)).toFixed(4)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                       <button
