@@ -11,6 +11,21 @@ import { useCurrency } from '../hooks/useCurrency';
 
 const geoUrl = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
 
+// ISO 3166-1 numeric to alpha-3 mapping for countries we track
+const numericToAlpha3: Record<string, string> = {
+  '840': 'USA', '826': 'GBR', '276': 'DEU', '250': 'FRA', '380': 'ITA',
+  '724': 'ESP', '528': 'NLD', '056': 'BEL', '756': 'CHE', '040': 'AUT',
+  '752': 'SWE', '578': 'NOR', '208': 'DNK', '246': 'FIN', '372': 'IRL',
+  '620': 'PRT', '616': 'POL', '203': 'CZE', '348': 'HUN', '642': 'ROU',
+  '100': 'BGR', '300': 'GRC', '792': 'TUR', '643': 'RUS', '804': 'UKR',
+  '124': 'CAN', '484': 'MEX', '076': 'BRA', '032': 'ARG', '152': 'CHL',
+  '170': 'COL', '604': 'PER', '862': 'VEN', '156': 'CHN', '392': 'JPN',
+  '410': 'KOR', '356': 'IND', '036': 'AUS', '554': 'NZL', '702': 'SGP',
+  '344': 'HKG', '158': 'TWN', '764': 'THA', '458': 'MYS', '360': 'IDN',
+  '608': 'PHL', '704': 'VNM', '376': 'ISR', '682': 'SAU', '784': 'ARE',
+  '710': 'ZAF', '818': 'EGY', '566': 'NGA', '404': 'KEN', '504': 'MAR',
+};
+
 interface LocationData {
   country: string;
   countryCode: string;
@@ -157,8 +172,7 @@ export default function Locations() {
     return <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>;
   };
 
-  const handleMouseEnter = (geo: { properties?: { ISO_A3?: string; NAME?: string; name?: string }; id?: string }, evt: React.MouseEvent) => {
-    const countryCode = geo.properties?.ISO_A3 || geo.id || '';
+  const handleMouseEnter = (geo: { properties?: { name?: string }; id?: string }, countryCode: string, evt: React.MouseEvent) => {
     const location = locationMap[countryCode];
 
     if (location) {
@@ -166,7 +180,7 @@ export default function Locations() {
         `${location.country}: ${location.calls.toLocaleString()} calls, ${formatCurrency(location.cost)}`
       );
     } else {
-      const countryName = geo.properties?.NAME || geo.properties?.name || 'Unknown';
+      const countryName = geo.properties?.name || 'Unknown';
       setTooltipContent(`${countryName}: No data`);
     }
 
@@ -260,14 +274,16 @@ export default function Locations() {
             >
               <ZoomableGroup>
                 <Geographies geography={geoUrl}>
-                  {({ geographies }: { geographies: Array<{ rsmKey: string; properties?: { ISO_A3?: string }; id?: string }> }) =>
-                    geographies.map((geo: { rsmKey: string; properties?: { ISO_A3?: string }; id?: string }) => {
-                      const countryCode = geo.properties?.ISO_A3 || geo.id || '';
+                  {({ geographies }: { geographies: Array<{ rsmKey: string; properties?: { ISO_A3?: string; name?: string }; id?: string }> }) =>
+                    geographies.map((geo: { rsmKey: string; properties?: { ISO_A3?: string; name?: string }; id?: string }) => {
+                      // Convert numeric ISO code to alpha-3 code
+                      const numericId = geo.id || '';
+                      const countryCode = numericToAlpha3[numericId] || geo.properties?.ISO_A3 || '';
                       return (
                         <Geography
                           key={geo.rsmKey}
                           geography={geo}
-                          onMouseEnter={(evt: React.MouseEvent<SVGPathElement>) => handleMouseEnter(geo as any, evt)}
+                          onMouseEnter={(evt: React.MouseEvent<SVGPathElement>) => handleMouseEnter(geo as any, countryCode, evt)}
                           onMouseLeave={handleMouseLeave}
                           style={{
                             default: {
