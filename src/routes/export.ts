@@ -11,18 +11,24 @@ function findRateForCall(
   rates: RateMatrix[],
   originCountry: string | null,
   destCountry: string | null,
-  callType: string
+  callType: string,
+  carrierId?: number
 ): number {
   if (!originCountry || !destCountry) return 0;
 
-  let rate = rates.find(
+  // Filter rates by carrier if specified
+  const filteredRates = carrierId
+    ? rates.filter(r => r.carrierId === carrierId)
+    : rates;
+
+  let rate = filteredRates.find(
     r => r.originCountry === originCountry &&
          r.destCountry === destCountry &&
          r.callType === callType
   );
 
   if (!rate) {
-    rate = rates.find(
+    rate = filteredRates.find(
       r => r.originCountry === originCountry &&
            r.destination === destCountry &&
            r.callType === callType
@@ -30,7 +36,7 @@ function findRateForCall(
   }
 
   if (!rate) {
-    rate = rates.find(
+    rate = filteredRates.find(
       r => r.originCountry === originCountry &&
            r.destCountry === destCountry
     );
@@ -42,9 +48,10 @@ function findRateForCall(
 // Export usage summary as CSV
 router.get('/csv', async (req: AuthRequest, res: Response) => {
   try {
-    const { month, year } = req.query;
+    const { month, year, carrierId: carrierIdParam } = req.query;
+    const carrierId = carrierIdParam ? parseInt(carrierIdParam as string) : undefined;
 
-    let dateFilter = {};
+    let dateFilter: any = {};
     if (month && year) {
       const startDate = new Date(Number(year), Number(month) - 1, 1);
       const endDate = new Date(Number(year), Number(month), 0);
@@ -54,6 +61,10 @@ router.get('/csv', async (req: AuthRequest, res: Response) => {
           lte: endDate,
         },
       };
+    }
+
+    if (carrierId) {
+      dateFilter.carrierId = carrierId;
     }
 
     const usageSummary = await prisma.callRecord.groupBy({
@@ -81,12 +92,13 @@ router.get('/csv', async (req: AuthRequest, res: Response) => {
             duration: true,
             originCountry: true,
             destCountry: true,
+            carrierId: true,
           },
         });
 
         let totalCost = 0;
         for (const call of userCalls) {
-          const rate = findRateForCall(rates, call.originCountry, call.destCountry, call.callType);
+          const rate = findRateForCall(rates, call.originCountry, call.destCountry, call.callType, call.carrierId);
           totalCost += (call.duration / 60) * rate;
         }
 
@@ -121,9 +133,10 @@ router.get('/csv', async (req: AuthRequest, res: Response) => {
 // Export usage summary as PDF
 router.get('/pdf', async (req: AuthRequest, res: Response) => {
   try {
-    const { month, year } = req.query;
+    const { month, year, carrierId: carrierIdParam } = req.query;
+    const carrierId = carrierIdParam ? parseInt(carrierIdParam as string) : undefined;
 
-    let dateFilter = {};
+    let dateFilter: any = {};
     let reportTitle = 'Usage Report - All Time';
     if (month && year) {
       const startDate = new Date(Number(year), Number(month) - 1, 1);
@@ -136,6 +149,10 @@ router.get('/pdf', async (req: AuthRequest, res: Response) => {
       };
       const monthName = startDate.toLocaleString('default', { month: 'long' });
       reportTitle = `Usage Report - ${monthName} ${year}`;
+    }
+
+    if (carrierId) {
+      dateFilter.carrierId = carrierId;
     }
 
     const usageSummary = await prisma.callRecord.groupBy({
@@ -163,12 +180,13 @@ router.get('/pdf', async (req: AuthRequest, res: Response) => {
             duration: true,
             originCountry: true,
             destCountry: true,
+            carrierId: true,
           },
         });
 
         let totalCost = 0;
         for (const call of userCalls) {
-          const rate = findRateForCall(rates, call.originCountry, call.destCountry, call.callType);
+          const rate = findRateForCall(rates, call.originCountry, call.destCountry, call.callType, call.carrierId);
           totalCost += (call.duration / 60) * rate;
         }
 

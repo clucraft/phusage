@@ -42,6 +42,7 @@ export default function Rates() {
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [clearExisting, setClearExisting] = useState(true);
+  const [carrierName, setCarrierName] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Manual rate add
@@ -109,14 +110,25 @@ export default function Rates() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (!carrierName.trim()) {
+      setUploadResult({
+        message: 'Please enter a carrier name before uploading',
+        type: 'error',
+      });
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      return;
+    }
+
     setUploading(true);
     setUploadResult(null);
     setError('');
 
     try {
-      const response = await uploadApi.uploadVerizonRates(file, clearExisting);
+      const response = await uploadApi.uploadVerizonRates(file, carrierName.trim(), clearExisting);
       setUploadResult({
-        message: `Imported ${response.data.recordsProcessed} rates${response.data.recordsSkipped ? ` (${response.data.recordsSkipped} skipped)` : ''}`,
+        message: `Imported ${response.data.recordsProcessed} rates for "${carrierName.trim()}"${response.data.recordsSkipped ? ` (${response.data.recordsSkipped} skipped)` : ''}`,
         type: 'success',
       });
       fetchRates();
@@ -199,12 +211,24 @@ export default function Rates() {
 
       {/* Upload Section */}
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Import Verizon Rate Matrix</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Import Rate Matrix</h2>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-          Upload the Verizon VoIP Usage Rates Excel file (.xlsx). The system will parse the "Usage Geographic Termination" sheet
-          and import rates with origin country, destination, and price per minute.
+          Upload a rate Excel file (.xlsx). Enter the carrier name to associate rates with (e.g., "Verizon", "Fusion Connect").
+          A new carrier will be created if it doesn't exist.
         </p>
         <div className="flex flex-wrap items-center gap-4">
+          <div className="w-48">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Carrier Name
+            </label>
+            <input
+              type="text"
+              placeholder="e.g., Verizon"
+              value={carrierName}
+              onChange={(e) => setCarrierName(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+            />
+          </div>
           <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
             <input
               type="checkbox"
@@ -212,16 +236,20 @@ export default function Rates() {
               onChange={(e) => setClearExisting(e.target.checked)}
               className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
             />
-            Clear existing rates before import
+            Clear existing rates for this carrier
           </label>
-          <label className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 cursor-pointer transition-colors">
+          <label className={`px-4 py-2 rounded-md cursor-pointer transition-colors ${
+            carrierName.trim()
+              ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+              : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+          }`}>
             {uploading ? 'Uploading...' : 'Choose File'}
             <input
               ref={fileInputRef}
               type="file"
               accept=".xlsx,.xls"
               onChange={handleUpload}
-              disabled={uploading}
+              disabled={uploading || !carrierName.trim()}
               className="hidden"
             />
           </label>

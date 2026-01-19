@@ -5,9 +5,14 @@ import {
   Geography,
   ZoomableGroup,
 } from 'react-simple-maps';
-import { usageApi } from '../services/api';
+import { usageApi, carrierApi } from '../services/api';
 import { useTheme } from '../hooks/useTheme';
 import { useCurrency } from '../hooks/useCurrency';
+
+interface Carrier {
+  id: number;
+  name: string;
+}
 
 const geoUrl = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
 
@@ -41,6 +46,7 @@ type SortDirection = 'asc' | 'desc';
 export default function Locations() {
   const [locations, setLocations] = useState<LocationData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [carriers, setCarriers] = useState<Carrier[]>([]);
   const [month, setMonth] = useState<number>(() => {
     const saved = sessionStorage.getItem('locations_month');
     return saved ? parseInt(saved, 10) : new Date().getMonth() + 1;
@@ -49,12 +55,29 @@ export default function Locations() {
     const saved = sessionStorage.getItem('locations_year');
     return saved ? parseInt(saved, 10) : new Date().getFullYear();
   });
+  const [carrierId, setCarrierId] = useState<number | undefined>(() => {
+    const saved = sessionStorage.getItem('locations_carrierId');
+    return saved ? parseInt(saved, 10) : undefined;
+  });
   const [tooltipContent, setTooltipContent] = useState('');
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const [sortField, setSortField] = useState<SortField>('cost');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const { theme } = useTheme();
   const { formatCurrency } = useCurrency();
+
+  // Load carriers on mount
+  useEffect(() => {
+    const loadCarriers = async () => {
+      try {
+        const response = await carrierApi.getAll();
+        setCarriers(response.data);
+      } catch (error) {
+        console.error('Failed to load carriers:', error);
+      }
+    };
+    loadCarriers();
+  }, []);
 
   // Persist filters to sessionStorage
   useEffect(() => {
@@ -66,13 +89,21 @@ export default function Locations() {
   }, [year]);
 
   useEffect(() => {
+    if (carrierId !== undefined) {
+      sessionStorage.setItem('locations_carrierId', String(carrierId));
+    } else {
+      sessionStorage.removeItem('locations_carrierId');
+    }
+  }, [carrierId]);
+
+  useEffect(() => {
     fetchLocations();
-  }, [month, year]);
+  }, [month, year, carrierId]);
 
   const fetchLocations = async () => {
     setLoading(true);
     try {
-      const response = await usageApi.getLocations(month, year);
+      const response = await usageApi.getLocations(month, year, carrierId);
       setLocations(response.data);
     } catch (error) {
       console.error('Failed to fetch locations:', error);
@@ -214,6 +245,18 @@ export default function Locations() {
       <div className="flex flex-wrap justify-between items-center gap-4">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Locations</h1>
         <div className="flex items-center gap-4">
+          {carriers.length > 0 && (
+            <select
+              value={carrierId || ''}
+              onChange={(e) => setCarrierId(e.target.value ? Number(e.target.value) : undefined)}
+              className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            >
+              <option value="">All Carriers</option>
+              {carriers.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          )}
           <select
             value={month}
             onChange={(e) => setMonth(Number(e.target.value))}

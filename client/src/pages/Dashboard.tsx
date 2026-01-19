@@ -3,9 +3,14 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   AreaChart, Area,
 } from 'recharts';
-import { usageApi, exportApi } from '../services/api';
+import { usageApi, exportApi, carrierApi } from '../services/api';
 import { useTheme } from '../hooks/useTheme';
 import { useCurrency } from '../hooks/useCurrency';
+
+interface Carrier {
+  id: number;
+  name: string;
+}
 
 interface UserUsage {
   userName: string;
@@ -44,6 +49,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [topDestinations, setTopDestinations] = useState<TopDestination[]>([]);
   const [loading, setLoading] = useState(true);
+  const [carriers, setCarriers] = useState<Carrier[]>([]);
   const [month, setMonth] = useState<number>(() => {
     const saved = sessionStorage.getItem('dashboard_month');
     return saved ? parseInt(saved, 10) : new Date().getMonth() + 1;
@@ -52,8 +58,25 @@ export default function Dashboard() {
     const saved = sessionStorage.getItem('dashboard_year');
     return saved ? parseInt(saved, 10) : new Date().getFullYear();
   });
+  const [carrierId, setCarrierId] = useState<number | undefined>(() => {
+    const saved = sessionStorage.getItem('dashboard_carrierId');
+    return saved ? parseInt(saved, 10) : undefined;
+  });
   const { theme } = useTheme();
   const { formatCurrency, convertAmount, currency } = useCurrency();
+
+  // Load carriers on mount
+  useEffect(() => {
+    const loadCarriers = async () => {
+      try {
+        const response = await carrierApi.getAll();
+        setCarriers(response.data);
+      } catch (error) {
+        console.error('Failed to load carriers:', error);
+      }
+    };
+    loadCarriers();
+  }, []);
 
   // Persist filters to sessionStorage
   useEffect(() => {
@@ -63,6 +86,14 @@ export default function Dashboard() {
   useEffect(() => {
     sessionStorage.setItem('dashboard_year', String(year));
   }, [year]);
+
+  useEffect(() => {
+    if (carrierId !== undefined) {
+      sessionStorage.setItem('dashboard_carrierId', String(carrierId));
+    } else {
+      sessionStorage.removeItem('dashboard_carrierId');
+    }
+  }, [carrierId]);
 
   // Convert monthly costs for chart
   const convertedMonthlyCosts = useMemo(() => {
@@ -74,19 +105,19 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchData();
-  }, [month, year]);
+  }, [month, year, carrierId]);
 
   useEffect(() => {
     fetchYearlyData();
-  }, [year]);
+  }, [year, carrierId]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
       const [top10Res, statsRes, destRes] = await Promise.all([
-        usageApi.getTop10(month, year),
-        usageApi.getDashboardStats(month, year),
-        usageApi.getTopDestinations(month, year, 5),
+        usageApi.getTop10(month, year, carrierId),
+        usageApi.getDashboardStats(month, year, carrierId),
+        usageApi.getTopDestinations(month, year, 5, carrierId),
       ]);
       setTop10(top10Res.data);
       setStats(statsRes.data);
@@ -100,7 +131,7 @@ export default function Dashboard() {
 
   const fetchYearlyData = async () => {
     try {
-      const monthlyRes = await usageApi.getMonthlyCosts(year);
+      const monthlyRes = await usageApi.getMonthlyCosts(year, carrierId);
       setMonthlyCosts(monthlyRes.data);
     } catch (error) {
       console.error('Failed to fetch monthly costs:', error);
@@ -110,8 +141,8 @@ export default function Dashboard() {
   const downloadReport = async (format: 'csv' | 'pdf') => {
     try {
       const response = format === 'csv'
-        ? await exportApi.downloadCsv(month, year)
-        : await exportApi.downloadPdf(month, year);
+        ? await exportApi.downloadCsv(month, year, carrierId)
+        : await exportApi.downloadPdf(month, year, carrierId);
 
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
@@ -146,6 +177,18 @@ export default function Dashboard() {
       <div className="flex flex-wrap justify-between items-center gap-4">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
         <div className="flex flex-wrap items-center gap-4">
+          {carriers.length > 0 && (
+            <select
+              value={carrierId || ''}
+              onChange={(e) => setCarrierId(e.target.value ? Number(e.target.value) : undefined)}
+              className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            >
+              <option value="">All Carriers</option>
+              {carriers.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          )}
           <select
             value={month}
             onChange={(e) => setMonth(Number(e.target.value))}

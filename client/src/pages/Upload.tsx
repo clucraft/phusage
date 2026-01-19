@@ -1,5 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { uploadApi } from '../services/api';
+import { uploadApi, carrierApi } from '../services/api';
+
+interface Carrier {
+  id: number;
+  name: string;
+}
 
 interface UploadHistoryItem {
   id: number;
@@ -10,6 +15,7 @@ interface UploadHistoryItem {
   uploadedAt: string;
   dateRangeStart: string | null;
   dateRangeEnd: string | null;
+  carrier: { id: number; name: string } | null;
 }
 
 interface Gap {
@@ -25,11 +31,26 @@ export default function Upload() {
   const [history, setHistory] = useState<UploadHistoryItem[]>([]);
   const [gaps, setGaps] = useState<Gap[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [carriers, setCarriers] = useState<Carrier[]>([]);
+  const [selectedCarrierId, setSelectedCarrierId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadHistory();
+    loadCarriers();
   }, []);
+
+  const loadCarriers = async () => {
+    try {
+      const response = await carrierApi.getWithRates();
+      setCarriers(response.data);
+      if (response.data.length > 0) {
+        setSelectedCarrierId(response.data[0].id);
+      }
+    } catch (error) {
+      console.error('Failed to load carriers:', error);
+    }
+  };
 
   const loadHistory = async () => {
     setLoadingHistory(true);
@@ -55,11 +76,19 @@ export default function Upload() {
   const handleUpload = async () => {
     if (!file) return;
 
+    if (!selectedCarrierId) {
+      setResult({
+        success: false,
+        message: 'Please select a carrier. Upload rate files first to create carriers.',
+      });
+      return;
+    }
+
     setUploading(true);
     setResult(null);
 
     try {
-      const response = await uploadApi.uploadTeamsReport(file);
+      const response = await uploadApi.uploadTeamsReport(file, selectedCarrierId);
       const skippedMsg = response.data.recordsSkipped
         ? ` (${response.data.recordsSkipped} skipped - failed/zero duration)`
         : '';
@@ -150,6 +179,29 @@ export default function Upload() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Select Carrier
+                </label>
+                {carriers.length === 0 ? (
+                  <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 p-3 rounded-md text-sm text-amber-700 dark:text-amber-400">
+                    No carriers with rates found. Please upload a rate file first on the Rates page.
+                  </div>
+                ) : (
+                  <select
+                    value={selectedCarrierId || ''}
+                    onChange={(e) => setSelectedCarrierId(Number(e.target.value))}
+                    className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+                  >
+                    {carriers.map((carrier) => (
+                      <option key={carrier.id} value={carrier.id}>
+                        {carrier.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Select File
                 </label>
                 <input
@@ -175,7 +227,7 @@ export default function Upload() {
 
               <button
                 onClick={handleUpload}
-                disabled={!file || uploading}
+                disabled={!file || uploading || !selectedCarrierId}
                 className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {uploading ? 'Uploading...' : 'Upload Report'}
@@ -275,6 +327,11 @@ export default function Upload() {
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                           {item.recordCount.toLocaleString()} records • Uploaded {formatDateTime(item.uploadedAt)}
+                          {item.carrier && (
+                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-300">
+                              {item.carrier.name}
+                            </span>
+                          )}
                         </p>
                         {item.dateRangeStart && item.dateRangeEnd && (
                           <p className="text-xs mt-1">
@@ -401,6 +458,11 @@ export default function Upload() {
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                           {item.recordCount.toLocaleString()} rates • Uploaded {formatDateTime(item.uploadedAt)}
+                          {item.carrier && (
+                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-300">
+                              {item.carrier.name}
+                            </span>
+                          )}
                         </p>
                       </div>
                       <button

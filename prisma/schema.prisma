@@ -24,6 +24,15 @@ model AppSettings {
   updatedAt           DateTime @updatedAt
 }
 
+model Carrier {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  createdAt   DateTime  @default(now())
+  callRecords CallRecord[]
+  rateMatrices RateMatrix[]
+  uploadHistories UploadHistory[]
+}
+
 model CallRecord {
   id              Int      @id @default(autoincrement())
   userName        String
@@ -36,11 +45,14 @@ model CallRecord {
   originCountry   String?  // Parsed from source number
   destCountry     String?  // Parsed from destination number
   uploadedAt      DateTime @default(now())
+  carrierId       Int
+  carrier         Carrier  @relation(fields: [carrierId], references: [id])
 
   @@index([userEmail])
   @@index([callDate])
   @@index([originCountry])
   @@index([destCountry])
+  @@index([carrierId])
 }
 
 model RateMatrix {
@@ -54,10 +66,13 @@ model RateMatrix {
   endDate         DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+  carrierId       Int
+  carrier         Carrier   @relation(fields: [carrierId], references: [id])
 
-  @@unique([originCountry, destination, callType])
+  @@unique([originCountry, destination, callType, carrierId])
   @@index([originCountry])
   @@index([destCountry])
+  @@index([carrierId])
 }
 
 model UploadHistory {
@@ -71,4 +86,8 @@ model UploadHistory {
   reportYear     Int?
   dateRangeStart DateTime? // Earliest call date in the upload
   dateRangeEnd   DateTime? // Latest call date in the upload
+  carrierId      Int?
+  carrier        Carrier?  @relation(fields: [carrierId], references: [id])
+
+  @@index([carrierId])
 }

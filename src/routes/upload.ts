@@ -20,6 +20,19 @@ router.post('/teams-report', upload.single('file'), async (req: AuthRequest, res
       return;
     }
 
+    const carrierId = parseInt(req.body.carrierId);
+    if (!carrierId || isNaN(carrierId)) {
+      res.status(400).json({ error: 'Carrier is required' });
+      return;
+    }
+
+    // Verify carrier exists
+    const carrier = await prisma.carrier.findUnique({ where: { id: carrierId } });
+    if (!carrier) {
+      res.status(400).json({ error: 'Invalid carrier' });
+      return;
+    }
+
     const filePath = req.file.path;
     const ext = req.file.originalname.split('.').pop()?.toLowerCase();
     let records: any[] = [];
@@ -99,6 +112,7 @@ router.post('/teams-report', upload.single('file'), async (req: AuthRequest, res
           originCountry,
           destCountry,
           uploadedAt: new Date(),
+          carrierId,
         },
       });
       processed++;
@@ -113,6 +127,7 @@ router.post('/teams-report', upload.single('file'), async (req: AuthRequest, res
         uploadedBy: req.user?.email || 'unknown',
         dateRangeStart,
         dateRangeEnd,
+        carrierId,
       },
     });
 
@@ -148,6 +163,19 @@ router.post('/verizon-rates', upload.single('file'), async (req: AuthRequest, re
       res.status(400).json({ error: 'No file uploaded' });
       return;
     }
+
+    const carrierName = req.body.carrierName?.trim();
+    if (!carrierName) {
+      res.status(400).json({ error: 'Carrier name is required' });
+      return;
+    }
+
+    // Find or create carrier
+    let carrier = await prisma.carrier.findUnique({ where: { name: carrierName } });
+    if (!carrier) {
+      carrier = await prisma.carrier.create({ data: { name: carrierName } });
+    }
+    const carrierId = carrier.id;
 
     const filePath = req.file.path;
     const ext = req.file.originalname.split('.').pop()?.toLowerCase();
@@ -211,10 +239,10 @@ router.post('/verizon-rates', upload.single('file'), async (req: AuthRequest, re
       return;
     }
 
-    // Clear existing rates (optional - could make this configurable)
+    // Clear existing rates for this carrier (optional - could make this configurable)
     const clearExisting = req.body.clearExisting !== 'false';
     if (clearExisting) {
-      await prisma.rateMatrix.deleteMany({});
+      await prisma.rateMatrix.deleteMany({ where: { carrierId } });
     }
 
     // Process rate rows
@@ -264,10 +292,11 @@ router.post('/verizon-rates', upload.single('file'), async (req: AuthRequest, re
       try {
         await prisma.rateMatrix.upsert({
           where: {
-            originCountry_destination_callType: {
+            originCountry_destination_callType_carrierId: {
               originCountry,
               destination,
               callType,
+              carrierId,
             },
           },
           update: {
@@ -284,6 +313,7 @@ router.post('/verizon-rates', upload.single('file'), async (req: AuthRequest, re
             pricePerMinute: price,
             effectiveDate,
             endDate,
+            carrierId,
           },
         });
         processed++;
@@ -302,6 +332,7 @@ router.post('/verizon-rates', upload.single('file'), async (req: AuthRequest, re
         fileType: 'rates',
         recordCount: processed,
         uploadedBy: req.user?.email || 'unknown',
+        carrierId,
       },
     });
 
@@ -330,6 +361,11 @@ router.get('/history', async (req: AuthRequest, res: Response) => {
     const history = await prisma.uploadHistory.findMany({
       where,
       orderBy: { uploadedAt: 'desc' },
+      include: {
+        carrier: {
+          select: { id: true, name: true },
+        },
+      },
     });
 
     // Calculate gaps for teams uploads

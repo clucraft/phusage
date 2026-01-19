@@ -9,6 +9,7 @@ import ratesRoutes from './routes/rates.js';
 import exportRoutes from './routes/export.js';
 import adminRoutes from './routes/admin.js';
 import estimatorRoutes from './routes/estimator.js';
+import carrierRoutes from './routes/carriers.js';
 import { authenticateToken, requireAdmin } from './middleware/auth.js';
 
 dotenv.config();
@@ -28,6 +29,7 @@ app.use('/api/rates', authenticateToken, ratesRoutes);
 app.use('/api/export', authenticateToken, exportRoutes);
 app.use('/api/admin', authenticateToken, requireAdmin, adminRoutes);
 app.use('/api/estimator', authenticateToken, estimatorRoutes);
+app.use('/api/carriers', authenticateToken, carrierRoutes);
 
 // Serve static files from React app in production
 if (process.env.NODE_ENV === 'production') {

@@ -1,10 +1,15 @@
 import { useState, useMemo, useEffect } from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import { usageApi } from '../services/api';
+import { usageApi, carrierApi } from '../services/api';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, LineChart, Line, XAxis, YAxis } from 'recharts';
 import { useTheme } from '../hooks/useTheme';
 import { useCurrency } from '../hooks/useCurrency';
+
+interface Carrier {
+  id: number;
+  name: string;
+}
 
 interface UserCall {
   date: string;
@@ -144,6 +149,11 @@ export default function UserSearch() {
     if (saved) return new Date(saved);
     return getPresetDateRange('thisMonth').end;
   });
+  const [carrierId, setCarrierId] = useState<number | undefined>(() => {
+    const saved = sessionStorage.getItem('usersearch_carrierId');
+    return saved ? parseInt(saved, 10) : undefined;
+  });
+  const [carriers, setCarriers] = useState<Carrier[]>([]);
   const [userData, setUserData] = useState<UserData | null>(() => {
     const saved = sessionStorage.getItem('usersearch_userData');
     return saved ? JSON.parse(saved) : null;
@@ -158,6 +168,19 @@ export default function UserSearch() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const { theme } = useTheme();
   const { formatCurrency, convertAmount, currency } = useCurrency();
+
+  // Load carriers on mount
+  useEffect(() => {
+    const loadCarriers = async () => {
+      try {
+        const response = await carrierApi.getAll();
+        setCarriers(response.data);
+      } catch (error) {
+        console.error('Failed to load carriers:', error);
+      }
+    };
+    loadCarriers();
+  }, []);
 
   // Persist filters and results to sessionStorage
   useEffect(() => {
@@ -175,6 +198,14 @@ export default function UserSearch() {
   useEffect(() => {
     sessionStorage.setItem('usersearch_endDate', endDate.toISOString());
   }, [endDate]);
+
+  useEffect(() => {
+    if (carrierId !== undefined) {
+      sessionStorage.setItem('usersearch_carrierId', String(carrierId));
+    } else {
+      sessionStorage.removeItem('usersearch_carrierId');
+    }
+  }, [carrierId]);
 
   useEffect(() => {
     if (userData) {
@@ -231,8 +262,8 @@ export default function UserSearch() {
       const endStr = formatDateForApi(endDate);
 
       const [userResponse, trendResponse] = await Promise.all([
-        usageApi.searchUser(searchTerm, startStr, endStr),
-        usageApi.getUserTrend(searchTerm, startStr, endStr),
+        usageApi.searchUser(searchTerm, startStr, endStr, carrierId),
+        usageApi.getUserTrend(searchTerm, startStr, endStr, carrierId),
       ]);
       setUserData(userResponse.data);
       setTrendData(trendResponse.data);
@@ -424,8 +455,24 @@ export default function UserSearch() {
             </button>
           </div>
 
-          {/* Date Range Controls */}
+          {/* Carrier and Date Range Controls */}
           <div className="flex flex-wrap items-center gap-4">
+            {carriers.length > 0 && (
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Carrier:</label>
+                <select
+                  value={carrierId || ''}
+                  onChange={(e) => setCarrierId(e.target.value ? Number(e.target.value) : undefined)}
+                  className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors text-sm"
+                >
+                  <option value="">All Carriers</option>
+                  {carriers.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Date Range:</label>
               <select

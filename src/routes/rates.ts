@@ -8,12 +8,18 @@ const prisma = new PrismaClient();
 // Get all rates with pagination and filtering
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
-    const { originCountry, destCountry, originSearch, destSearch, page = '1', limit = '100' } = req.query;
+    const { originCountry, destCountry, originSearch, destSearch, carrierId: carrierIdParam, page = '1', limit = '100' } = req.query;
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
     const skip = (pageNum - 1) * limitNum;
+    const carrierId = carrierIdParam ? parseInt(carrierIdParam as string) : undefined;
 
     const where: any = {};
+
+    // Carrier filter
+    if (carrierId) {
+      where.carrierId = carrierId;
+    }
 
     // Exact match filters (from dropdowns)
     if (originCountry) where.originCountry = originCountry;
@@ -36,6 +42,11 @@ router.get('/', async (req: AuthRequest, res: Response) => {
         orderBy: [{ originCountry: 'asc' }, { destination: 'asc' }],
         skip,
         take: limitNum,
+        include: {
+          carrier: {
+            select: { id: true, name: true },
+          },
+        },
       }),
       prisma.rateMatrix.count({ where }),
     ]);
@@ -109,10 +120,10 @@ router.get('/stats', async (req: AuthRequest, res: Response) => {
 // Create or update a rate manually
 router.post('/', async (req: AuthRequest, res: Response) => {
   try {
-    const { originCountry, destination, callType, pricePerMinute } = req.body;
+    const { originCountry, destination, callType, pricePerMinute, carrierId } = req.body;
 
-    if (!originCountry || !destination || !pricePerMinute) {
-      res.status(400).json({ error: 'originCountry, destination, and pricePerMinute are required' });
+    if (!originCountry || !destination || !pricePerMinute || !carrierId) {
+      res.status(400).json({ error: 'originCountry, destination, pricePerMinute, and carrierId are required' });
       return;
     }
 
@@ -120,10 +131,11 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 
     const rate = await prisma.rateMatrix.upsert({
       where: {
-        originCountry_destination_callType: {
+        originCountry_destination_callType_carrierId: {
           originCountry,
           destination,
           callType: callType || 'Outbound',
+          carrierId: parseInt(carrierId),
         },
       },
       update: { pricePerMinute, destCountry },
@@ -133,6 +145,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
         destCountry,
         callType: callType || 'Outbound',
         pricePerMinute,
+        carrierId: parseInt(carrierId),
       },
     });
 

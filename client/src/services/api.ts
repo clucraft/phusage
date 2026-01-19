@@ -33,35 +33,37 @@ export const authApi = {
 };
 
 export const usageApi = {
-  getSummary: (month?: number, year?: number) =>
-    api.get('/usage/summary', { params: { month, year } }),
-  getTop10: (month?: number, year?: number) =>
-    api.get('/usage/top10', { params: { month, year } }),
-  searchUser: (email: string, startDate?: string, endDate?: string) =>
-    api.get(`/usage/user/${encodeURIComponent(email)}`, { params: { startDate, endDate } }),
-  getUserTrend: (email: string, startDate?: string, endDate?: string) =>
-    api.get(`/usage/user/${encodeURIComponent(email)}/trend`, { params: { startDate, endDate } }),
-  getMonthlyCosts: (year?: number) =>
-    api.get('/usage/monthly-costs', { params: { year } }),
-  getDashboardStats: (month?: number, year?: number) =>
-    api.get('/usage/dashboard-stats', { params: { month, year } }),
-  getTopDestinations: (month?: number, year?: number, limit?: number) =>
-    api.get('/usage/top-destinations', { params: { month, year, limit } }),
-  getLocations: (month?: number, year?: number) =>
-    api.get('/usage/locations', { params: { month, year } }),
+  getSummary: (month?: number, year?: number, carrierId?: number) =>
+    api.get('/usage/summary', { params: { month, year, carrierId } }),
+  getTop10: (month?: number, year?: number, carrierId?: number) =>
+    api.get('/usage/top10', { params: { month, year, carrierId } }),
+  searchUser: (email: string, startDate?: string, endDate?: string, carrierId?: number) =>
+    api.get(`/usage/user/${encodeURIComponent(email)}`, { params: { startDate, endDate, carrierId } }),
+  getUserTrend: (email: string, startDate?: string, endDate?: string, carrierId?: number) =>
+    api.get(`/usage/user/${encodeURIComponent(email)}/trend`, { params: { startDate, endDate, carrierId } }),
+  getMonthlyCosts: (year?: number, carrierId?: number) =>
+    api.get('/usage/monthly-costs', { params: { year, carrierId } }),
+  getDashboardStats: (month?: number, year?: number, carrierId?: number) =>
+    api.get('/usage/dashboard-stats', { params: { month, year, carrierId } }),
+  getTopDestinations: (month?: number, year?: number, limit?: number, carrierId?: number) =>
+    api.get('/usage/top-destinations', { params: { month, year, limit, carrierId } }),
+  getLocations: (month?: number, year?: number, carrierId?: number) =>
+    api.get('/usage/locations', { params: { month, year, carrierId } }),
 };
 
 export const uploadApi = {
-  uploadTeamsReport: (file: File) => {
+  uploadTeamsReport: (file: File, carrierId: number) => {
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('carrierId', String(carrierId));
     return api.post('/upload/teams-report', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
-  uploadVerizonRates: (file: File, clearExisting: boolean = true) => {
+  uploadVerizonRates: (file: File, carrierName: string, clearExisting: boolean = true) => {
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('carrierName', carrierName);
     formData.append('clearExisting', String(clearExisting));
     return api.post('/upload/verizon-rates', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -90,10 +92,15 @@ export const ratesApi = {
 };
 
 export const exportApi = {
-  downloadCsv: (month?: number, year?: number) =>
-    api.get('/export/csv', { params: { month, year }, responseType: 'blob' }),
-  downloadPdf: (month?: number, year?: number) =>
-    api.get('/export/pdf', { params: { month, year }, responseType: 'blob' }),
+  downloadCsv: (month?: number, year?: number, carrierId?: number) =>
+    api.get('/export/csv', { params: { month, year, carrierId }, responseType: 'blob' }),
+  downloadPdf: (month?: number, year?: number, carrierId?: number) =>
+    api.get('/export/pdf', { params: { month, year, carrierId }, responseType: 'blob' }),
+};
+
+export const carrierApi = {
+  getAll: () => api.get('/carriers'),
+  getWithRates: () => api.get('/carriers/with-rates'),
 };
 
 export const estimatorApi = {

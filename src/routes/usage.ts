@@ -10,12 +10,18 @@ async function findRateForCall(
   rates: RateMatrix[],
   originCountry: string | null,
   destCountry: string | null,
-  callType: string
+  callType: string,
+  carrierId?: number
 ): Promise<number> {
   if (!originCountry || !destCountry) return 0;
 
+  // Filter rates by carrier if specified
+  const filteredRates = carrierId
+    ? rates.filter(r => r.carrierId === carrierId)
+    : rates;
+
   // Try to find exact match for origin + destCountry + callType
-  let rate = rates.find(
+  let rate = filteredRates.find(
     r => r.originCountry === originCountry &&
          r.destCountry === destCountry &&
          r.callType === callType
@@ -23,7 +29,7 @@ async function findRateForCall(
 
   // If no exact match, try matching by destination field (for specific destinations like "Afghanistan-Mobile")
   if (!rate) {
-    rate = rates.find(
+    rate = filteredRates.find(
       r => r.originCountry === originCountry &&
            r.destination === destCountry &&
            r.callType === callType
@@ -32,7 +38,7 @@ async function findRateForCall(
 
   // Fall back to any rate with matching origin and destCountry (ignore callType)
   if (!rate) {
-    rate = rates.find(
+    rate = filteredRates.find(
       r => r.originCountry === originCountry &&
            r.destCountry === destCountry
     );
@@ -44,9 +50,10 @@ async function findRateForCall(
 // Get usage summary for all users (with optional month filter)
 router.get('/summary', async (req: AuthRequest, res: Response) => {
   try {
-    const { month, year } = req.query;
+    const { month, year, carrierId: carrierIdParam } = req.query;
+    const carrierId = carrierIdParam ? parseInt(carrierIdParam as string) : undefined;
 
-    let dateFilter = {};
+    let dateFilter: any = {};
     if (month && year) {
       const startDate = new Date(Number(year), Number(month) - 1, 1);
       const endDate = new Date(Number(year), Number(month), 0);
@@ -56,6 +63,11 @@ router.get('/summary', async (req: AuthRequest, res: Response) => {
           lte: endDate,
         },
       };
+    }
+
+    // Add carrier filter
+    if (carrierId) {
+      dateFilter.carrierId = carrierId;
     }
 
     const usageSummary = await prisma.callRecord.groupBy({
@@ -85,12 +97,13 @@ router.get('/summary', async (req: AuthRequest, res: Response) => {
             duration: true,
             originCountry: true,
             destCountry: true,
+            carrierId: true,
           },
         });
 
         let totalCost = 0;
         for (const call of userCalls) {
-          const rate = await findRateForCall(rates, call.originCountry, call.destCountry, call.callType);
+          const rate = await findRateForCall(rates, call.originCountry, call.destCountry, call.callType, call.carrierId);
           totalCost += (call.duration / 60) * rate;
         }
 
@@ -114,9 +127,10 @@ router.get('/summary', async (req: AuthRequest, res: Response) => {
 // Get top 10 users by cost
 router.get('/top10', async (req: AuthRequest, res: Response) => {
   try {
-    const { month, year } = req.query;
+    const { month, year, carrierId: carrierIdParam } = req.query;
+    const carrierId = carrierIdParam ? parseInt(carrierIdParam as string) : undefined;
 
-    let dateFilter = {};
+    let dateFilter: any = {};
     if (month && year) {
       const startDate = new Date(Number(year), Number(month) - 1, 1);
       const endDate = new Date(Number(year), Number(month), 0);
@@ -126,6 +140,10 @@ router.get('/top10', async (req: AuthRequest, res: Response) => {
           lte: endDate,
         },
       };
+    }
+
+    if (carrierId) {
+      dateFilter.carrierId = carrierId;
     }
 
     const usageSummary = await prisma.callRecord.groupBy({
@@ -150,12 +168,13 @@ router.get('/top10', async (req: AuthRequest, res: Response) => {
             duration: true,
             originCountry: true,
             destCountry: true,
+            carrierId: true,
           },
         });
 
         let totalCost = 0;
         for (const call of userCalls) {
-          const rate = await findRateForCall(rates, call.originCountry, call.destCountry, call.callType);
+          const rate = await findRateForCall(rates, call.originCountry, call.destCountry, call.callType, call.carrierId);
           totalCost += (call.duration / 60) * rate;
         }
 
@@ -184,9 +203,10 @@ router.get('/top10', async (req: AuthRequest, res: Response) => {
 router.get('/user/:email', async (req: AuthRequest, res: Response) => {
   try {
     const email = req.params.email as string;
-    const { startDate: startDateStr, endDate: endDateStr } = req.query;
+    const { startDate: startDateStr, endDate: endDateStr, carrierId: carrierIdParam } = req.query;
+    const carrierId = carrierIdParam ? parseInt(carrierIdParam as string) : undefined;
 
-    let dateFilter = {};
+    let dateFilter: any = {};
     if (startDateStr && endDateStr) {
       const startDate = new Date(startDateStr as string);
       const endDate = new Date(endDateStr as string);
@@ -198,6 +218,10 @@ router.get('/user/:email', async (req: AuthRequest, res: Response) => {
           lte: endDate,
         },
       };
+    }
+
+    if (carrierId) {
+      dateFilter.carrierId = carrierId;
     }
 
     const userCalls = await prisma.callRecord.findMany({
@@ -227,7 +251,7 @@ router.get('/user/:email', async (req: AuthRequest, res: Response) => {
     const callsWithCosts = [];
 
     for (const call of userCalls) {
-      const rate = await findRateForCall(rates, call.originCountry, call.destCountry, call.callType);
+      const rate = await findRateForCall(rates, call.originCountry, call.destCountry, call.callType, call.carrierId);
       const callCost = (call.duration / 60) * rate;
       totalCost += callCost;
 
@@ -262,7 +286,8 @@ router.get('/user/:email', async (req: AuthRequest, res: Response) => {
 router.get('/user/:email/trend', async (req: AuthRequest, res: Response) => {
   try {
     const email = req.params.email as string;
-    const { startDate: startDateStr, endDate: endDateStr } = req.query;
+    const { startDate: startDateStr, endDate: endDateStr, carrierId: carrierIdParam } = req.query;
+    const carrierId = carrierIdParam ? parseInt(carrierIdParam as string) : undefined;
     const rates = await prisma.rateMatrix.findMany();
 
     // Default to current year if no dates provided
@@ -283,28 +308,34 @@ router.get('/user/:email/trend', async (req: AuthRequest, res: Response) => {
       const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
       const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59);
 
-      const calls = await prisma.callRecord.findMany({
-        where: {
-          userEmail: {
-            contains: email,
-            mode: 'insensitive',
-          },
-          callDate: {
-            gte: monthStart,
-            lte: monthEnd,
-          },
+      const callFilter: any = {
+        userEmail: {
+          contains: email,
+          mode: 'insensitive',
         },
+        callDate: {
+          gte: monthStart,
+          lte: monthEnd,
+        },
+      };
+      if (carrierId) {
+        callFilter.carrierId = carrierId;
+      }
+
+      const calls = await prisma.callRecord.findMany({
+        where: callFilter,
         select: {
           duration: true,
           originCountry: true,
           destCountry: true,
           callType: true,
+          carrierId: true,
         },
       });
 
       let totalCost = 0;
       for (const call of calls) {
-        const rate = await findRateForCall(rates, call.originCountry, call.destCountry, call.callType);
+        const rate = await findRateForCall(rates, call.originCountry, call.destCountry, call.callType, call.carrierId);
         totalCost += (call.duration / 60) * rate;
       }
 
@@ -323,28 +354,34 @@ router.get('/user/:email/trend', async (req: AuthRequest, res: Response) => {
     }
 
     // Get totals for the entire range
-    const rangeCalls = await prisma.callRecord.findMany({
-      where: {
-        userEmail: {
-          contains: email,
-          mode: 'insensitive',
-        },
-        callDate: {
-          gte: rangeStart,
-          lte: rangeEnd,
-        },
+    const rangeFilter: any = {
+      userEmail: {
+        contains: email,
+        mode: 'insensitive',
       },
+      callDate: {
+        gte: rangeStart,
+        lte: rangeEnd,
+      },
+    };
+    if (carrierId) {
+      rangeFilter.carrierId = carrierId;
+    }
+
+    const rangeCalls = await prisma.callRecord.findMany({
+      where: rangeFilter,
       select: {
         duration: true,
         originCountry: true,
         destCountry: true,
         callType: true,
+        carrierId: true,
       },
     });
 
     let rangeCost = 0;
     for (const call of rangeCalls) {
-      const rate = await findRateForCall(rates, call.originCountry, call.destCountry, call.callType);
+      const rate = await findRateForCall(rates, call.originCountry, call.destCountry, call.callType, call.carrierId);
       rangeCost += (call.duration / 60) * rate;
     }
 
@@ -368,6 +405,8 @@ router.get('/user/:email/trend', async (req: AuthRequest, res: Response) => {
 router.get('/monthly-costs', async (req: AuthRequest, res: Response) => {
   try {
     const year = req.query.year ? Number(req.query.year) : new Date().getFullYear();
+    const carrierIdParam = req.query.carrierId;
+    const carrierId = carrierIdParam ? parseInt(carrierIdParam as string) : undefined;
     const rates = await prisma.rateMatrix.findMany();
 
     const monthlyCosts = [];
@@ -376,24 +415,30 @@ router.get('/monthly-costs', async (req: AuthRequest, res: Response) => {
       const startDate = new Date(year, month - 1, 1);
       const endDate = new Date(year, month, 0, 23, 59, 59);
 
-      const calls = await prisma.callRecord.findMany({
-        where: {
-          callDate: {
-            gte: startDate,
-            lte: endDate,
-          },
+      const callFilter: any = {
+        callDate: {
+          gte: startDate,
+          lte: endDate,
         },
+      };
+      if (carrierId) {
+        callFilter.carrierId = carrierId;
+      }
+
+      const calls = await prisma.callRecord.findMany({
+        where: callFilter,
         select: {
           duration: true,
           originCountry: true,
           destCountry: true,
           callType: true,
+          carrierId: true,
         },
       });
 
       let totalCost = 0;
       for (const call of calls) {
-        const rate = await findRateForCall(rates, call.originCountry, call.destCountry, call.callType);
+        const rate = await findRateForCall(rates, call.originCountry, call.destCountry, call.callType, call.carrierId);
         totalCost += (call.duration / 60) * rate;
       }
 
@@ -415,10 +460,11 @@ router.get('/monthly-costs', async (req: AuthRequest, res: Response) => {
 // Get dashboard stats (averages, totals)
 router.get('/dashboard-stats', async (req: AuthRequest, res: Response) => {
   try {
-    const { month, year } = req.query;
+    const { month, year, carrierId: carrierIdParam } = req.query;
+    const carrierId = carrierIdParam ? parseInt(carrierIdParam as string) : undefined;
     const rates = await prisma.rateMatrix.findMany();
 
-    let dateFilter = {};
+    let dateFilter: any = {};
     if (month && year) {
       const startDate = new Date(Number(year), Number(month) - 1, 1);
       const endDate = new Date(Number(year), Number(month), 0, 23, 59, 59);
@@ -430,6 +476,10 @@ router.get('/dashboard-stats', async (req: AuthRequest, res: Response) => {
       };
     }
 
+    if (carrierId) {
+      dateFilter.carrierId = carrierId;
+    }
+
     const calls = await prisma.callRecord.findMany({
       where: dateFilter,
       select: {
@@ -438,13 +488,14 @@ router.get('/dashboard-stats', async (req: AuthRequest, res: Response) => {
         originCountry: true,
         destCountry: true,
         callType: true,
+        carrierId: true,
       },
     });
 
     // Calculate total cost
     let totalCost = 0;
     for (const call of calls) {
-      const rate = await findRateForCall(rates, call.originCountry, call.destCountry, call.callType);
+      const rate = await findRateForCall(rates, call.originCountry, call.destCountry, call.callType, call.carrierId);
       totalCost += (call.duration / 60) * rate;
     }
 
@@ -472,11 +523,12 @@ router.get('/dashboard-stats', async (req: AuthRequest, res: Response) => {
 // Get top destinations by cost and volume
 router.get('/top-destinations', async (req: AuthRequest, res: Response) => {
   try {
-    const { month, year, limit = '5' } = req.query;
+    const { month, year, limit = '5', carrierId: carrierIdParam } = req.query;
+    const carrierId = carrierIdParam ? parseInt(carrierIdParam as string) : undefined;
     const rates = await prisma.rateMatrix.findMany();
     const limitNum = parseInt(limit as string);
 
-    let dateFilter = {};
+    let dateFilter: any = {};
     if (month && year) {
       const startDate = new Date(Number(year), Number(month) - 1, 1);
       const endDate = new Date(Number(year), Number(month), 0, 23, 59, 59);
@@ -488,6 +540,10 @@ router.get('/top-destinations', async (req: AuthRequest, res: Response) => {
       };
     }
 
+    if (carrierId) {
+      dateFilter.carrierId = carrierId;
+    }
+
     const calls = await prisma.callRecord.findMany({
       where: dateFilter,
       select: {
@@ -495,6 +551,7 @@ router.get('/top-destinations', async (req: AuthRequest, res: Response) => {
         originCountry: true,
         destCountry: true,
         callType: true,
+        carrierId: true,
       },
     });
 
@@ -507,7 +564,7 @@ router.get('/top-destinations', async (req: AuthRequest, res: Response) => {
         destStats[dest] = { calls: 0, cost: 0, minutes: 0 };
       }
 
-      const rate = await findRateForCall(rates, call.originCountry, call.destCountry, call.callType);
+      const rate = await findRateForCall(rates, call.originCountry, call.destCountry, call.callType, call.carrierId);
       const callCost = (call.duration / 60) * rate;
 
       destStats[dest].calls += 1;
@@ -552,10 +609,11 @@ router.get('/top-destinations', async (req: AuthRequest, res: Response) => {
 // Get location stats (aggregated by origin country)
 router.get('/locations', async (req: AuthRequest, res: Response) => {
   try {
-    const { month, year } = req.query;
+    const { month, year, carrierId: carrierIdParam } = req.query;
+    const carrierId = carrierIdParam ? parseInt(carrierIdParam as string) : undefined;
     const rates = await prisma.rateMatrix.findMany();
 
-    let dateFilter = {};
+    let dateFilter: any = {};
     if (month && year) {
       const startDate = new Date(Number(year), Number(month) - 1, 1);
       const endDate = new Date(Number(year), Number(month), 0, 23, 59, 59);
@@ -567,6 +625,10 @@ router.get('/locations', async (req: AuthRequest, res: Response) => {
       };
     }
 
+    if (carrierId) {
+      dateFilter.carrierId = carrierId;
+    }
+
     const calls = await prisma.callRecord.findMany({
       where: dateFilter,
       select: {
@@ -575,6 +637,7 @@ router.get('/locations', async (req: AuthRequest, res: Response) => {
         originCountry: true,
         destCountry: true,
         callType: true,
+        carrierId: true,
       },
     });
 
@@ -592,7 +655,7 @@ router.get('/locations', async (req: AuthRequest, res: Response) => {
         locationStats[origin] = { calls: 0, cost: 0, minutes: 0, users: new Set() };
       }
 
-      const rate = await findRateForCall(rates, call.originCountry, call.destCountry, call.callType);
+      const rate = await findRateForCall(rates, call.originCountry, call.destCountry, call.callType, call.carrierId);
       const callCost = (call.duration / 60) * rate;
 
       locationStats[origin].calls += 1;
