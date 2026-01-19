@@ -15,7 +15,8 @@ export function authenticateToken(
   next: NextFunction
 ): void {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  // Support token from query param for SSE (EventSource doesn't support headers)
+  const token = (authHeader && authHeader.split(' ')[1]) || (req.query.token as string);
 
   if (!token) {
     res.status(401).json({ error: 'Access token required' });

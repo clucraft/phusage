@@ -51,14 +51,50 @@ export const usageApi = {
     api.get('/usage/locations', { params: { month, year, carrierId } }),
 };
 
+export interface UploadProgress {
+  id: string;
+  status: 'parsing' | 'processing' | 'complete' | 'error';
+  total: number;
+  processed: number;
+  skipped: number;
+  error?: string;
+  result?: {
+    recordsProcessed: number;
+    recordsSkipped: number;
+  };
+}
+
 export const uploadApi = {
   uploadTeamsReport: (file: File, carrierId: number) => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('carrierId', String(carrierId));
-    return api.post('/upload/teams-report', formData, {
+    return api.post<{ jobId: string }>('/upload/teams-report', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
+  },
+  connectToProgress: (jobId: string, onProgress: (progress: UploadProgress) => void, onError: (error: string) => void) => {
+    const token = localStorage.getItem('token');
+    const eventSource = new EventSource(`/api/upload/progress/${jobId}?token=${token}`);
+
+    eventSource.onmessage = (event) => {
+      try {
+        const progress = JSON.parse(event.data) as UploadProgress;
+        onProgress(progress);
+        if (progress.status === 'complete' || progress.status === 'error') {
+          eventSource.close();
+        }
+      } catch (e) {
+        console.error('Failed to parse progress:', e);
+      }
+    };
+
+    eventSource.onerror = () => {
+      onError('Connection lost');
+      eventSource.close();
+    };
+
+    return eventSource;
   },
   uploadVerizonRates: (file: File, carrierName: string, clearExisting: boolean = true) => {
     const formData = new FormData();

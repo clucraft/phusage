@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { uploadApi, carrierApi } from '../services/api';
+import { uploadApi, carrierApi, UploadProgress } from '../services/api';
 
 interface Carrier {
   id: number;
@@ -33,6 +33,7 @@ export default function Upload() {
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [carriers, setCarriers] = useState<Carrier[]>([]);
   const [selectedCarrierId, setSelectedCarrierId] = useState<number | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -86,29 +87,59 @@ export default function Upload() {
 
     setUploading(true);
     setResult(null);
+    setUploadProgress(null);
 
     try {
+      // Start upload and get job ID
       const response = await uploadApi.uploadTeamsReport(file, selectedCarrierId);
-      const skippedMsg = response.data.recordsSkipped
-        ? ` (${response.data.recordsSkipped} skipped - failed/zero duration)`
-        : '';
-      setResult({
-        success: true,
-        message: `Successfully processed ${response.data.recordsProcessed} records${skippedMsg}.`,
-      });
-      setFile(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-      // Reload history after successful upload
-      loadHistory();
+      const { jobId } = response.data;
+
+      // Connect to SSE for progress updates
+      uploadApi.connectToProgress(
+        jobId,
+        (progress) => {
+          setUploadProgress(progress);
+
+          if (progress.status === 'complete' && progress.result) {
+            const skippedMsg = progress.result.recordsSkipped
+              ? ` (${progress.result.recordsSkipped} skipped - failed/zero duration)`
+              : '';
+            setResult({
+              success: true,
+              message: `Successfully processed ${progress.result.recordsProcessed} records${skippedMsg}.`,
+            });
+            setFile(null);
+            if (fileInputRef.current) {
+              fileInputRef.current.value = '';
+            }
+            setUploading(false);
+            setUploadProgress(null);
+            loadHistory();
+          } else if (progress.status === 'error') {
+            setResult({
+              success: false,
+              message: progress.error || 'Failed to process file',
+            });
+            setUploading(false);
+            setUploadProgress(null);
+          }
+        },
+        (error) => {
+          setResult({
+            success: false,
+            message: error || 'Connection lost during upload',
+          });
+          setUploading(false);
+          setUploadProgress(null);
+        }
+      );
     } catch (error: any) {
       setResult({
         success: false,
         message: error.response?.data?.error || 'Failed to upload file',
       });
-    } finally {
       setUploading(false);
+      setUploadProgress(null);
     }
   };
 
@@ -230,8 +261,41 @@ export default function Upload() {
                 disabled={!file || uploading || !selectedCarrierId}
                 className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {uploading ? 'Uploading...' : 'Upload Report'}
+                {uploading ? 'Processing...' : 'Upload Report'}
               </button>
+
+              {uploadProgress && (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
+                    <span>
+                      {uploadProgress.status === 'parsing' && 'Parsing file...'}
+                      {uploadProgress.status === 'processing' && (
+                        <>Processing {uploadProgress.processed.toLocaleString()} of {uploadProgress.total.toLocaleString()} records</>
+                      )}
+                    </span>
+                    {uploadProgress.status === 'processing' && uploadProgress.total > 0 && (
+                      <span>{Math.round((uploadProgress.processed / uploadProgress.total) * 100)}%</span>
+                    )}
+                  </div>
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                    <div
+                      className="bg-indigo-600 h-2.5 rounded-full transition-all duration-200"
+                      style={{
+                        width: uploadProgress.status === 'parsing'
+                          ? '10%'
+                          : uploadProgress.total > 0
+                            ? `${Math.round((uploadProgress.processed / uploadProgress.total) * 100)}%`
+                            : '0%'
+                      }}
+                    />
+                  </div>
+                  {uploadProgress.skipped > 0 && (
+                    <p className="text-xs text-gray-500 dark:text-gray-500">
+                      {uploadProgress.skipped.toLocaleString()} records skipped
+                    </p>
+                  )}
+                </div>
+              )}
 
               {result && (
                 <div

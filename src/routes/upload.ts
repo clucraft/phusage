@@ -6,14 +6,95 @@ import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth.js';
 import { getCountryFromPhoneNumber } from '../utils/countryCodes.js';
 import fs from 'fs';
+import { randomUUID } from 'crypto';
 
 const router = Router();
 const prisma = new PrismaClient();
 
 const upload = multer({ dest: 'uploads/' });
 
+// Job tracking for progress updates
+interface UploadJob {
+  id: string;
+  status: 'parsing' | 'processing' | 'complete' | 'error';
+  total: number;
+  processed: number;
+  skipped: number;
+  error?: string;
+  result?: {
+    recordsProcessed: number;
+    recordsSkipped: number;
+  };
+}
+
+const uploadJobs = new Map<string, UploadJob>();
+
+// Clean up old jobs after 5 minutes
+setInterval(() => {
+  const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+  for (const [id, job] of uploadJobs.entries()) {
+    if (job.status === 'complete' || job.status === 'error') {
+      uploadJobs.delete(id);
+    }
+  }
+}, 60 * 1000);
+
+// SSE endpoint for upload progress (token via query param since EventSource doesn't support headers)
+router.get('/progress/:jobId', (req: AuthRequest, res: Response) => {
+  const jobId = req.params.jobId as string;
+  const job = uploadJobs.get(jobId);
+
+  if (!job) {
+    res.status(404).json({ error: 'Job not found' });
+    return;
+  }
+
+  // Note: Authentication is handled by the middleware, token can be passed via query param
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  const sendProgress = () => {
+    const currentJob = uploadJobs.get(jobId);
+    if (!currentJob) {
+      res.write(`data: ${JSON.stringify({ status: 'error', error: 'Job not found' })}\n\n`);
+      res.end();
+      return;
+    }
+
+    res.write(`data: ${JSON.stringify(currentJob)}\n\n`);
+
+    if (currentJob.status === 'complete' || currentJob.status === 'error') {
+      res.end();
+      return;
+    }
+  };
+
+  // Send initial progress
+  sendProgress();
+
+  // Send progress updates every 200ms
+  const interval = setInterval(() => {
+    const currentJob = uploadJobs.get(jobId);
+    if (!currentJob || currentJob.status === 'complete' || currentJob.status === 'error') {
+      sendProgress();
+      clearInterval(interval);
+      return;
+    }
+    sendProgress();
+  }, 200);
+
+  // Clean up on client disconnect
+  req.on('close', () => {
+    clearInterval(interval);
+  });
+});
+
 // Upload Teams call report
 router.post('/teams-report', upload.single('file'), async (req: AuthRequest, res: Response) => {
+  const jobId = randomUUID();
+
   try {
     if (!req.file) {
       res.status(400).json({ error: 'No file uploaded' });
@@ -34,114 +115,164 @@ router.post('/teams-report', upload.single('file'), async (req: AuthRequest, res
     }
 
     const filePath = req.file.path;
-    const ext = req.file.originalname.split('.').pop()?.toLowerCase();
-    let records: any[] = [];
+    const originalName = req.file.originalname;
+    const ext = originalName.split('.').pop()?.toLowerCase();
+    const userEmail = req.user?.email || 'unknown';
 
-    if (ext === 'csv') {
-      const fileContent = fs.readFileSync(filePath, 'utf-8');
-      records = await new Promise((resolve, reject) => {
-        parse(fileContent, { columns: true, skip_empty_lines: true }, (err, data) => {
-          if (err) reject(err);
-          else resolve(data);
+    // Initialize job with parsing status
+    uploadJobs.set(jobId, {
+      id: jobId,
+      status: 'parsing',
+      total: 0,
+      processed: 0,
+      skipped: 0,
+    });
+
+    // Return jobId immediately so client can connect to SSE
+    res.json({ jobId });
+
+    // Process file asynchronously
+    (async () => {
+      try {
+        let records: any[] = [];
+
+        if (ext === 'csv') {
+          const fileContent = fs.readFileSync(filePath, 'utf-8');
+          records = await new Promise((resolve, reject) => {
+            parse(fileContent, { columns: true, skip_empty_lines: true }, (err, data) => {
+              if (err) reject(err);
+              else resolve(data);
+            });
+          });
+        } else if (ext === 'xlsx' || ext === 'xls') {
+          const workbook = XLSX.readFile(filePath);
+          const sheetName = workbook.SheetNames[0];
+          records = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+        }
+
+        // Update job with total records
+        const job = uploadJobs.get(jobId)!;
+        job.status = 'processing';
+        job.total = records.length;
+
+        // Process and store call records
+        let processed = 0;
+        let skipped = 0;
+        let dateRangeStart: Date | null = null;
+        let dateRangeEnd: Date | null = null;
+
+        for (const record of records) {
+          // Only process Outbound calls
+          const callDirection = (record['Call Direction'] || record['CallDirection'] || '').toLowerCase();
+          if (callDirection && callDirection !== 'outbound') {
+            skipped++;
+            job.skipped = skipped;
+            continue;
+          }
+
+          // Skip failed calls
+          const success = record['Success'] || record['success'] || '';
+          if (success.toLowerCase() === 'no' || success === '0' || success === 'false') {
+            skipped++;
+            job.skipped = skipped;
+            continue;
+          }
+
+          // Get duration and skip zero-duration calls
+          const duration = parseInt(
+            record['Duration (seconds)'] || record['Duration'] || record['CallDuration'] || record['duration'] || '0'
+          );
+          if (duration === 0) {
+            skipped++;
+            job.skipped = skipped;
+            continue;
+          }
+
+          // Get phone numbers
+          const sourceNumber = record['Caller Number'] || record['Source'] || record['SourceNumber'] || record['From'] || '';
+          const destNumber = record['Callee Number'] || record['Destination'] || record['ToNumber'] || record['To'] || '';
+
+          // Parse countries from phone number country codes (matches Verizon rate naming)
+          const originCountry = getCountryFromPhoneNumber(sourceNumber);
+          const destCountry = getCountryFromPhoneNumber(destNumber);
+
+          // Parse call date
+          const callDate = new Date(record['Start time'] || record['Date'] || record['CallDate'] || record['call_date'] || new Date());
+
+          // Track date range
+          if (!dateRangeStart || callDate < dateRangeStart) {
+            dateRangeStart = callDate;
+          }
+          if (!dateRangeEnd || callDate > dateRangeEnd) {
+            dateRangeEnd = callDate;
+          }
+
+          await prisma.callRecord.create({
+            data: {
+              userName: record['Display Name'] || record['User'] || record['UserName'] || record['user_name'] || '',
+              userEmail: record['UPN'] || record['Email'] || record['UserEmail'] || record['user_email'] || '',
+              callDate,
+              duration,
+              callType: 'Outbound',
+              sourceNumber,
+              destination: destNumber,
+              originCountry,
+              destCountry,
+              uploadedAt: new Date(),
+              carrierId,
+            },
+          });
+          processed++;
+          job.processed = processed;
+        }
+
+        // Record upload history with date range
+        await prisma.uploadHistory.create({
+          data: {
+            fileName: originalName,
+            fileType: 'teams',
+            recordCount: processed,
+            uploadedBy: userEmail,
+            dateRangeStart,
+            dateRangeEnd,
+            carrierId,
+          },
         });
-      });
-    } else if (ext === 'xlsx' || ext === 'xls') {
-      const workbook = XLSX.readFile(filePath);
-      const sheetName = workbook.SheetNames[0];
-      records = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
-    }
 
-    // Process and store call records
-    let processed = 0;
-    let skipped = 0;
-    let dateRangeStart: Date | null = null;
-    let dateRangeEnd: Date | null = null;
+        // Clean up uploaded file
+        fs.unlinkSync(filePath);
 
-    for (const record of records) {
-      // Only process Outbound calls
-      const callDirection = (record['Call Direction'] || record['CallDirection'] || '').toLowerCase();
-      if (callDirection && callDirection !== 'outbound') {
-        skipped++;
-        continue;
+        // Mark job complete
+        job.status = 'complete';
+        job.result = {
+          recordsProcessed: processed,
+          recordsSkipped: skipped,
+        };
+      } catch (error: any) {
+        console.error('Upload processing error:', error);
+        const job = uploadJobs.get(jobId);
+        if (job) {
+          job.status = 'error';
+          job.error = error.message || 'Failed to process file';
+        }
+        // Clean up file on error
+        try {
+          fs.unlinkSync(filePath);
+        } catch (e) {
+          // Ignore cleanup errors
+        }
       }
-
-      // Skip failed calls
-      const success = record['Success'] || record['success'] || '';
-      if (success.toLowerCase() === 'no' || success === '0' || success === 'false') {
-        skipped++;
-        continue;
-      }
-
-      // Get duration and skip zero-duration calls
-      const duration = parseInt(
-        record['Duration (seconds)'] || record['Duration'] || record['CallDuration'] || record['duration'] || '0'
-      );
-      if (duration === 0) {
-        skipped++;
-        continue;
-      }
-
-      // Get phone numbers
-      const sourceNumber = record['Caller Number'] || record['Source'] || record['SourceNumber'] || record['From'] || '';
-      const destNumber = record['Callee Number'] || record['Destination'] || record['ToNumber'] || record['To'] || '';
-
-      // Parse countries from phone number country codes (matches Verizon rate naming)
-      const originCountry = getCountryFromPhoneNumber(sourceNumber);
-      const destCountry = getCountryFromPhoneNumber(destNumber);
-
-      // Parse call date
-      const callDate = new Date(record['Start time'] || record['Date'] || record['CallDate'] || record['call_date'] || new Date());
-
-      // Track date range
-      if (!dateRangeStart || callDate < dateRangeStart) {
-        dateRangeStart = callDate;
-      }
-      if (!dateRangeEnd || callDate > dateRangeEnd) {
-        dateRangeEnd = callDate;
-      }
-
-      await prisma.callRecord.create({
-        data: {
-          userName: record['Display Name'] || record['User'] || record['UserName'] || record['user_name'] || '',
-          userEmail: record['UPN'] || record['Email'] || record['UserEmail'] || record['user_email'] || '',
-          callDate,
-          duration,
-          callType: 'Outbound',
-          sourceNumber,
-          destination: destNumber,
-          originCountry,
-          destCountry,
-          uploadedAt: new Date(),
-          carrierId,
-        },
-      });
-      processed++;
-    }
-
-    // Record upload history with date range
-    await prisma.uploadHistory.create({
-      data: {
-        fileName: req.file.originalname,
-        fileType: 'teams',
-        recordCount: processed,
-        uploadedBy: req.user?.email || 'unknown',
-        dateRangeStart,
-        dateRangeEnd,
-        carrierId,
-      },
-    });
-
-    // Clean up uploaded file
-    fs.unlinkSync(filePath);
-
-    res.json({
-      message: 'File processed successfully',
-      recordsProcessed: processed,
-      recordsSkipped: skipped,
-    });
-  } catch (error) {
+    })();
+  } catch (error: any) {
     console.error('Upload error:', error);
-    res.status(500).json({ error: 'Failed to process file' });
+    const job = uploadJobs.get(jobId);
+    if (job) {
+      job.status = 'error';
+      job.error = error.message || 'Failed to process file';
+    }
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to process file' });
+    }
   }
 });
 
