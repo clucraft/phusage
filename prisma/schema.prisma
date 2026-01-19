@@ -61,12 +61,14 @@ model RateMatrix {
 }
 
 model UploadHistory {
-  id           Int      @id @default(autoincrement())
-  fileName     String
-  fileType     String   @default("teams") // "teams" or "rates"
-  recordCount  Int
-  uploadedBy   String
-  uploadedAt   DateTime @default(now())
-  reportMonth  Int?
-  reportYear   Int?
+  id             Int       @id @default(autoincrement())
+  fileName       String
+  fileType       String    @default("teams") // "teams" or "rates"
+  recordCount    Int
+  uploadedBy     String
+  uploadedAt     DateTime  @default(now())
+  reportMonth    Int?
+  reportYear     Int?
+  dateRangeStart DateTime? // Earliest call date in the upload
+  dateRangeEnd   DateTime? // Latest call date in the upload
 }

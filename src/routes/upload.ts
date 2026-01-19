@@ -41,6 +41,8 @@ router.post('/teams-report', upload.single('file'), async (req: AuthRequest, res
     // Process and store call records
     let processed = 0;
     let skipped = 0;
+    let dateRangeStart: Date | null = null;
+    let dateRangeEnd: Date | null = null;
 
     for (const record of records) {
       // Only process Outbound calls
@@ -74,11 +76,22 @@ router.post('/teams-report', upload.single('file'), async (req: AuthRequest, res
       const originCountry = getCountryFromPhoneNumber(sourceNumber);
       const destCountry = getCountryFromPhoneNumber(destNumber);
 
+      // Parse call date
+      const callDate = new Date(record['Start time'] || record['Date'] || record['CallDate'] || record['call_date'] || new Date());
+
+      // Track date range
+      if (!dateRangeStart || callDate < dateRangeStart) {
+        dateRangeStart = callDate;
+      }
+      if (!dateRangeEnd || callDate > dateRangeEnd) {
+        dateRangeEnd = callDate;
+      }
+
       await prisma.callRecord.create({
         data: {
           userName: record['Display Name'] || record['User'] || record['UserName'] || record['user_name'] || '',
           userEmail: record['UPN'] || record['Email'] || record['UserEmail'] || record['user_email'] || '',
-          callDate: new Date(record['Start time'] || record['Date'] || record['CallDate'] || record['call_date'] || new Date()),
+          callDate,
           duration,
           callType: 'Outbound',
           sourceNumber,
@@ -91,13 +104,15 @@ router.post('/teams-report', upload.single('file'), async (req: AuthRequest, res
       processed++;
     }
 
-    // Record upload history
+    // Record upload history with date range
     await prisma.uploadHistory.create({
       data: {
         fileName: req.file.originalname,
         fileType: 'teams',
         recordCount: processed,
         uploadedBy: req.user?.email || 'unknown',
+        dateRangeStart,
+        dateRangeEnd,
       },
     });
 
@@ -302,6 +317,63 @@ router.post('/verizon-rates', upload.single('file'), async (req: AuthRequest, re
   } catch (error) {
     console.error('Rate upload error:', error);
     res.status(500).json({ error: 'Failed to process rate file' });
+  }
+});
+
+// Get upload history
+router.get('/history', async (req: AuthRequest, res: Response) => {
+  try {
+    const { fileType } = req.query;
+
+    const where = fileType ? { fileType: fileType as string } : {};
+
+    const history = await prisma.uploadHistory.findMany({
+      where,
+      orderBy: { uploadedAt: 'desc' },
+    });
+
+    // Calculate gaps for teams uploads
+    const teamsUploads = history
+      .filter(h => h.fileType === 'teams' && h.dateRangeStart && h.dateRangeEnd)
+      .sort((a, b) => new Date(a.dateRangeStart!).getTime() - new Date(b.dateRangeStart!).getTime());
+
+    const gaps: Array<{ start: Date; end: Date }> = [];
+
+    for (let i = 0; i < teamsUploads.length - 1; i++) {
+      const currentEnd = new Date(teamsUploads[i].dateRangeEnd!);
+      const nextStart = new Date(teamsUploads[i + 1].dateRangeStart!);
+
+      // Check if there's a gap of more than 1 day
+      const diffDays = (nextStart.getTime() - currentEnd.getTime()) / (1000 * 60 * 60 * 24);
+      if (diffDays > 1) {
+        const gapStart = new Date(currentEnd);
+        gapStart.setDate(gapStart.getDate() + 1);
+        const gapEnd = new Date(nextStart);
+        gapEnd.setDate(gapEnd.getDate() - 1);
+        gaps.push({ start: gapStart, end: gapEnd });
+      }
+    }
+
+    res.json({ history, gaps });
+  } catch (error) {
+    console.error('Upload history error:', error);
+    res.status(500).json({ error: 'Failed to fetch upload history' });
+  }
+});
+
+// Delete upload history entry (doesn't delete the actual call records)
+router.delete('/history/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const id = parseInt(req.params.id as string);
+
+    await prisma.uploadHistory.delete({
+      where: { id },
+    });
+
+    res.json({ message: 'Upload history entry deleted' });
+  } catch (error) {
+    console.error('Delete upload history error:', error);
+    res.status(500).json({ error: 'Failed to delete upload history entry' });
   }
 });
 

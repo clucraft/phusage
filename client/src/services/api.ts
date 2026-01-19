@@ -68,6 +68,10 @@ export const uploadApi = {
     });
   },
   clearCallRecords: () => api.delete('/upload/call-records'),
+  getHistory: (fileType?: string) =>
+    api.get('/upload/history', { params: { fileType } }),
+  deleteHistoryEntry: (id: number) =>
+    api.delete(`/upload/history/${id}`),
 };
 
 export const ratesApi = {
