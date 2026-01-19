@@ -23,11 +23,11 @@ export default function Layout({ children, onLogout, user }: LayoutProps) {
 
   const navItems = [
     { path: '/', label: 'Dashboard' },
-    { path: '/upload', label: 'Upload' },
     { path: '/search', label: 'User Search' },
     { path: '/locations', label: 'Locations' },
-    { path: '/rates', label: 'Rates' },
     { path: '/estimator', label: 'Estimator' },
+    { path: '/rates', label: 'Rates' },
+    { path: '/upload', label: 'Upload' },
     ...(user?.role === 'admin' ? [{ path: '/admin', label: 'Admin' }] : []),
   ];
 
