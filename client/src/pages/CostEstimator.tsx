@@ -364,12 +364,34 @@ export default function CostEstimator() {
     }
   };
 
-  const copyShareLink = () => {
+  const copyShareLink = async () => {
     if (!shareToken) return;
     const link = `${window.location.origin}/shared/${shareToken}`;
-    navigator.clipboard.writeText(link);
-    setCopySuccess(true);
-    setTimeout(() => setCopySuccess(false), 2000);
+
+    try {
+      // Try modern clipboard API first
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(link);
+      } else {
+        // Fallback for older browsers or non-HTTPS
+        const textArea = document.createElement('textarea');
+        textArea.value = link;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy link:', err);
+      // Show the link in a prompt as last resort
+      window.prompt('Copy this link:', link);
+    }
   };
 
   const handleDownloadPdf = async () => {
