@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 // Get shared estimate data (PUBLIC - no auth)
 router.get('/estimate/:shareToken', async (req: Request, res: Response) => {
   try {
-    const { shareToken } = req.params;
+    const shareToken = req.params.shareToken as string;
 
     const estimate = await prisma.savedEstimate.findUnique({
       where: { shareToken },
@@ -38,7 +38,7 @@ router.get('/estimate/:shareToken', async (req: Request, res: Response) => {
       carrierName: estimate.carrier?.name || null,
       results: estimate.results,
       notes: estimate.notes,
-      sharedBy: estimate.user.name || 'Anonymous',
+      sharedBy: estimate.user?.name || 'Anonymous',
       createdAt: estimate.createdAt,
       updatedAt: estimate.updatedAt,
     });
@@ -51,7 +51,7 @@ router.get('/estimate/:shareToken', async (req: Request, res: Response) => {
 // Recalculate with modified inputs (PUBLIC - for viewer interactivity)
 router.post('/estimate/:shareToken/calculate', async (req: Request, res: Response) => {
   try {
-    const { shareToken } = req.params;
+    const shareToken = req.params.shareToken as string;
     const {
       originCountry,
       userCount,
@@ -148,7 +148,7 @@ router.post('/estimate/:shareToken/calculate', async (req: Request, res: Respons
 // Get origin options for dropdown (PUBLIC)
 router.get('/estimate/:shareToken/origins', async (req: Request, res: Response) => {
   try {
-    const { shareToken } = req.params;
+    const shareToken = req.params.shareToken as string;
 
     // Verify the share token exists and is public
     const estimate = await prisma.savedEstimate.findUnique({
@@ -179,7 +179,7 @@ router.get('/estimate/:shareToken/origins', async (req: Request, res: Response) 
 // Get destination options (PUBLIC)
 router.get('/estimate/:shareToken/destinations', async (req: Request, res: Response) => {
   try {
-    const { shareToken } = req.params;
+    const shareToken = req.params.shareToken as string;
 
     // Verify the share token exists and is public
     const estimate = await prisma.savedEstimate.findUnique({
@@ -228,7 +228,7 @@ router.get('/estimate/:shareToken/destinations', async (req: Request, res: Respo
 // Get carrier options (PUBLIC)
 router.get('/estimate/:shareToken/carriers', async (req: Request, res: Response) => {
   try {
-    const { shareToken } = req.params;
+    const shareToken = req.params.shareToken as string;
 
     // Verify the share token exists and is public
     const estimate = await prisma.savedEstimate.findUnique({

@@ -416,7 +416,7 @@ router.post('/saved', async (req: AuthRequest, res: Response) => {
 router.get('/saved/:id', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id as string);
 
     const estimate = await prisma.savedEstimate.findFirst({
       where: { id, userId },
@@ -443,7 +443,7 @@ router.get('/saved/:id', async (req: AuthRequest, res: Response) => {
 router.patch('/saved/:id', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id as string);
     const {
       name,
       originCountry,
@@ -497,7 +497,7 @@ router.patch('/saved/:id', async (req: AuthRequest, res: Response) => {
 router.delete('/saved/:id', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id as string);
 
     // Check ownership
     const existing = await prisma.savedEstimate.findFirst({
@@ -526,7 +526,7 @@ router.delete('/saved/:id', async (req: AuthRequest, res: Response) => {
 router.post('/saved/:id/share', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id as string);
 
     // Check ownership
     const existing = await prisma.savedEstimate.findFirst({
@@ -560,7 +560,7 @@ router.post('/saved/:id/share', async (req: AuthRequest, res: Response) => {
 router.delete('/saved/:id/share', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id as string);
 
     // Check ownership
     const existing = await prisma.savedEstimate.findFirst({
