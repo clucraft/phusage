@@ -139,6 +139,24 @@ export const carrierApi = {
   getWithRates: () => api.get('/carriers/with-rates'),
 };
 
+export interface SavedEstimate {
+  id: number;
+  name: string;
+  originCountry: string;
+  userCount: number;
+  callsPerUserPerMonth: number;
+  avgMinutesPerCall: number;
+  destinations: Array<{ country: string; percentage: number }>;
+  carrierId: number | null;
+  carrier?: { name: string } | null;
+  results: any;
+  shareToken: string | null;
+  isPublic: boolean;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export const estimatorApi = {
   getTemplates: (year?: number) =>
     api.get('/estimator/templates', { params: { year } }),
@@ -153,7 +171,71 @@ export const estimatorApi = {
     callsPerUserPerMonth: number;
     avgMinutesPerCall: number;
     destinations: Array<{ country: string; percentage: number }>;
+    carrierId?: number | null;
   }) => api.post('/estimator/calculate', data),
+
+  // Saved estimates
+  getSaved: () => api.get<SavedEstimate[]>('/estimator/saved'),
+  saveEstimate: (data: {
+    name: string;
+    originCountry: string;
+    userCount: number;
+    callsPerUserPerMonth: number;
+    avgMinutesPerCall: number;
+    destinations: Array<{ country: string; percentage: number }>;
+    carrierId?: number | null;
+    results: any;
+    notes?: string;
+  }) => api.post<SavedEstimate>('/estimator/saved', data),
+  loadEstimate: (id: number) => api.get<SavedEstimate>(`/estimator/saved/${id}`),
+  updateEstimate: (id: number, data: Partial<{
+    name: string;
+    originCountry: string;
+    userCount: number;
+    callsPerUserPerMonth: number;
+    avgMinutesPerCall: number;
+    destinations: Array<{ country: string; percentage: number }>;
+    carrierId?: number | null;
+    results: any;
+    notes?: string;
+  }>) => api.patch<SavedEstimate>(`/estimator/saved/${id}`, data),
+  deleteEstimate: (id: number) => api.delete(`/estimator/saved/${id}`),
+
+  // Share functionality
+  createShareLink: (id: number) => api.post<{ shareToken: string }>(`/estimator/saved/${id}/share`),
+  removeShareLink: (id: number) => api.delete(`/estimator/saved/${id}/share`),
+
+  // PDF export
+  downloadPdf: (data: {
+    originCountry: string;
+    userCount: number;
+    callsPerUserPerMonth: number;
+    avgMinutesPerCall: number;
+    destinations: Array<{ country: string; percentage: number }>;
+    carrierId?: number | null;
+    results: any;
+    carrierName?: string;
+  }) => api.post('/estimator/pdf', data, { responseType: 'blob' }),
+};
+
+// Public API for shared estimates (no auth required)
+export const publicEstimatorApi = {
+  getSharedEstimate: (shareToken: string) =>
+    api.get(`/share/estimate/${shareToken}`),
+  calculate: (shareToken: string, data: {
+    originCountry: string;
+    userCount: number;
+    callsPerUserPerMonth: number;
+    avgMinutesPerCall: number;
+    destinations: Array<{ country: string; percentage: number }>;
+    carrierId?: number | null;
+  }) => api.post(`/share/estimate/${shareToken}/calculate`, data),
+  getOrigins: (shareToken: string) =>
+    api.get(`/share/estimate/${shareToken}/origins`),
+  getDestinations: (shareToken: string) =>
+    api.get(`/share/estimate/${shareToken}/destinations`),
+  getCarriers: (shareToken: string) =>
+    api.get(`/share/estimate/${shareToken}/carriers`),
 };
 
 export const adminApi = {

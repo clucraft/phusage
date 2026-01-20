@@ -8,13 +8,14 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String
-  name      String?
-  role      String   @default("user") // "admin" or "user"
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              Int              @id @default(autoincrement())
+  email           String           @unique
+  password        String
+  name            String?
+  role            String           @default("user") // "admin" or "user"
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  savedEstimates  SavedEstimate[]
 }
 
 model AppSettings {
@@ -25,12 +26,13 @@ model AppSettings {
 }
 
 model Carrier {
-  id          Int       @id @default(autoincrement())
-  name        String    @unique
-  createdAt   DateTime  @default(now())
-  callRecords CallRecord[]
-  rateMatrices RateMatrix[]
+  id              Int              @id @default(autoincrement())
+  name            String           @unique
+  createdAt       DateTime         @default(now())
+  callRecords     CallRecord[]
+  rateMatrices    RateMatrix[]
   uploadHistories UploadHistory[]
+  savedEstimates  SavedEstimate[]
 }
 
 model CallRecord {
@@ -90,4 +92,35 @@ model UploadHistory {
   carrier        Carrier?  @relation(fields: [carrierId], references: [id])
 
   @@index([carrierId])
+}
+
+model SavedEstimate {
+  id                    Int       @id @default(autoincrement())
+  name                  String
+
+  // Form inputs
+  originCountry         String
+  userCount             Int
+  callsPerUserPerMonth  Float
+  avgMinutesPerCall     Float
+  destinations          Json      // [{country, percentage}]
+  carrierId             Int?
+  carrier               Carrier?  @relation(fields: [carrierId], references: [id])
+
+  // Results (stored for quick load)
+  results               Json
+
+  // Sharing
+  shareToken            String?   @unique
+  isPublic              Boolean   @default(false)
+
+  // Metadata
+  notes                 String?
+  userId                Int
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([shareToken])
 }

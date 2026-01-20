@@ -10,6 +10,7 @@ import exportRoutes from './routes/export.js';
 import adminRoutes from './routes/admin.js';
 import estimatorRoutes from './routes/estimator.js';
 import carrierRoutes from './routes/carriers.js';
+import shareRoutes from './routes/share.js';
 import { authenticateToken, requireAdmin } from './middleware/auth.js';
 
 dotenv.config();
@@ -23,6 +24,7 @@ app.use(express.json());
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/share', shareRoutes); // Public - no auth required
 app.use('/api/upload', authenticateToken, uploadRoutes);
 app.use('/api/usage', authenticateToken, usageRoutes);
 app.use('/api/rates', authenticateToken, ratesRoutes);

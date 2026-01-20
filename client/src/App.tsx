@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -9,6 +9,7 @@ import Rates from './pages/Rates';
 import CostEstimator from './pages/CostEstimator';
 import Admin from './pages/Admin';
 import Layout from './components/Layout';
+import SharedEstimate from './pages/SharedEstimate';
 
 interface User {
   id: number;
@@ -21,6 +22,7 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const location = useLocation();
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -45,6 +47,15 @@ function App() {
     setIsAuthenticated(false);
     setUser(null);
   };
+
+  // Check for shared route BEFORE auth check - this allows public access
+  if (location.pathname.startsWith('/shared/')) {
+    return (
+      <Routes>
+        <Route path="/shared/:shareToken" element={<SharedEstimate />} />
+      </Routes>
+    );
+  }
 
   if (loading) {
     return (
