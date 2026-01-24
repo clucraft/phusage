@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366f1"/>
+      <stop offset="100%" style="stop-color:#4f46e5"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background rounded square -->
+  <rect x="32" y="32" width="448" height="448" rx="96" fill="url(#bgGrad)"/>
+
+  <!-- Phone handset (left side, angled) -->
+  <g transform="translate(80, 100)">
+    <!-- Earpiece -->
+    <rect x="0" y="0" width="80" height="100" rx="20" fill="white"/>
+    <!-- Cord/body -->
+    <rect x="25" y="90" width="30" height="140" rx="8" fill="white"/>
+    <!-- Mouthpiece -->
+    <rect x="0" y="220" width="80" height="100" rx="20" fill="white"/>
+  </g>
+
+  <!-- Calculator grid (right side) -->
+  <g transform="translate(200, 120)">
+    <!-- Calculator body -->
+    <rect x="0" y="0" width="200" height="280" rx="20" fill="white"/>
+
+    <!-- Display -->
+    <rect x="20" y="20" width="160" height="50" rx="8" fill="#1e1b4b"/>
+    <text x="165" y="55" font-family="Arial, sans-serif" font-size="28" font-weight="bold" fill="#a5b4fc" text-anchor="end">$123</text>
+
+    <!-- Calculator buttons - 4x3 grid -->
+    <!-- Row 1 -->
+    <rect x="20" y="90" width="45" height="40" rx="8" fill="#e0e7ff"/>
+    <rect x="77" y="90" width="45" height="40" rx="8" fill="#e0e7ff"/>
+    <rect x="134" y="90" width="45" height="40" rx="8" fill="#e0e7ff"/>
+
+    <!-- Row 2 -->
+    <rect x="20" y="142" width="45" height="40" rx="8" fill="#e0e7ff"/>
+    <rect x="77" y="142" width="45" height="40" rx="8" fill="#e0e7ff"/>
+    <rect x="134" y="142" width="45" height="40" rx="8" fill="#e0e7ff"/>
+
+    <!-- Row 3 -->
+    <rect x="20" y="194" width="45" height="40" rx="8" fill="#e0e7ff"/>
+    <rect x="77" y="194" width="45" height="40" rx="8" fill="#e0e7ff"/>
+    <rect x="134" y="194" width="45" height="40" rx="8" fill="#4f46e5"/>
+
+    <!-- Button labels -->
+    <text x="42" y="118" font-family="Arial" font-size="18" fill="#4f46e5" text-anchor="middle">7</text>
+    <text x="99" y="118" font-family="Arial" font-size="18" fill="#4f46e5" text-anchor="middle">8</text>
+    <text x="156" y="118" font-family="Arial" font-size="18" fill="#4f46e5" text-anchor="middle">9</text>
+    <text x="42" y="170" font-family="Arial" font-size="18" fill="#4f46e5" text-anchor="middle">4</text>
+    <text x="99" y="170" font-family="Arial" font-size="18" fill="#4f46e5" text-anchor="middle">5</text>
+    <text x="156" y="170" font-family="Arial" font-size="18" fill="#4f46e5" text-anchor="middle">6</text>
+    <text x="42" y="222" font-family="Arial" font-size="18" fill="#4f46e5" text-anchor="middle">1</text>
+    <text x="99" y="222" font-family="Arial" font-size="18" fill="#4f46e5" text-anchor="middle">2</text>
+    <text x="156" y="222" font-family="Arial" font-size="18" fill="white" text-anchor="middle">=</text>
+  </g>
+</svg>
