@@ -1,6 +1,12 @@
-# CallCulator
+<p align="center">
+  <img src="client/public/icon.svg" alt="CallCulator Logo" width="120" height="120">
+</p>
 
-A comprehensive Microsoft Teams PSTN call usage tracking and billing application for enterprise cost management.
+<h1 align="center">CallCulator</h1>
+
+<p align="center">
+  A comprehensive Microsoft Teams PSTN call usage tracking and billing application for enterprise cost management.
+</p>
 
 > **Built with AI:** This application was created with the assistance of [Claude](https://www.anthropic.com/claude) by Anthropic.
 
