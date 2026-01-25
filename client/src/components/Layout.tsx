@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { ReactNode } from 'react';
 import { useTheme } from '../hooks/useTheme';
 import { useCurrency } from '../hooks/useCurrency';
+import ParticlesBackground from './ParticlesBackground';
 
 interface User {
   id: number;
@@ -33,7 +34,8 @@ export default function Layout({ children, onLogout, user }: LayoutProps) {
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors duration-200">
-      <nav className="bg-white dark:bg-gray-800 shadow-sm transition-colors duration-200">
+      <ParticlesBackground />
+      <nav className="bg-white dark:bg-gray-800 shadow-sm transition-colors duration-200 relative z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex">
@@ -100,7 +102,7 @@ export default function Layout({ children, onLogout, user }: LayoutProps) {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 relative z-10">
         {children}
       </main>
     </div>

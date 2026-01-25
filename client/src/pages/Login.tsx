@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { authApi } from '../services/api';
 import { useTheme } from '../hooks/useTheme';
+import ParticlesBackground from '../components/ParticlesBackground';
 
 interface User {
   id: number;
@@ -69,7 +70,8 @@ export default function Login({ onLogin }: LoginProps) {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8 transition-colors duration-200">
-      <div className="absolute top-4 right-4">
+      <ParticlesBackground />
+      <div className="absolute top-4 right-4 z-10">
         <button
           onClick={toggleTheme}
           className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200"
@@ -86,7 +88,7 @@ export default function Login({ onLogin }: LoginProps) {
           )}
         </button>
       </div>
-      <div className="max-w-md w-full space-y-8">
+      <div className="max-w-md w-full space-y-8 relative z-10">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
             CallCulator

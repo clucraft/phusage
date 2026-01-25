@@ -1,0 +1,179 @@
+/* Particles Background Effect */
+/* Based on: https://codepen.io/alexitaylor/pen/RgxJwg */
+
+/* Config */
+$color-particle-light: rgba(99, 102, 241, 0.3); /* Subtle indigo for light mode */
+$color-particle-dark: rgba(255, 255, 255, 0.8); /* White for dark mode */
+$spacing: 2560px;
+$time-1: 60s;
+$time-2: 120s;
+$time-3: 180s;
+$time-4: 200s;
+
+/* Mixins for generating random particle positions */
+@function particles-dark($max) {
+  $val: 0px 0px $color-particle-dark;
+  @for $i from 1 through $max {
+    $val: #{$val}, random($spacing)+px random($spacing)+px $color-particle-dark;
+  }
+  @return $val;
+}
+
+@function particles-light($max) {
+  $val: 0px 0px $color-particle-light;
+  @for $i from 1 through $max {
+    $val: #{$val}, random($spacing)+px random($spacing)+px $color-particle-light;
+  }
+  @return $val;
+}
+
+@mixin particles-dark($max) {
+  box-shadow: particles-dark($max);
+  border-radius: 50%;
+}
+
+@mixin particles-light($max) {
+  box-shadow: particles-light($max);
+  border-radius: 50%;
+}
+
+/* Animation wrapper */
+.particles-wrapper {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.particle, .particle:after {
+  background: transparent;
+}
+
+.particle:after {
+  position: absolute;
+  content: "";
+  top: $spacing;
+}
+
+/* Dark mode particles (default) */
+.dark {
+  .particle-1 {
+    animation: animParticle $time-1 linear infinite;
+    @include particles-dark(600);
+    height: 2px;
+    width: 2px;
+  }
+
+  .particle-1:after {
+    @include particles-dark(500);
+    height: 2px;
+    width: 2px;
+  }
+
+  .particle-2 {
+    animation: animParticle $time-2 linear infinite;
+    @include particles-dark(400);
+    height: 2px;
+    width: 2px;
+  }
+
+  .particle-2:after {
+    @include particles-dark(300);
+    height: 3px;
+    width: 3px;
+  }
+
+  .particle-3 {
+    animation: animParticle $time-3 linear infinite;
+    @include particles-dark(300);
+    height: 3px;
+    width: 3px;
+  }
+
+  .particle-3:after {
+    @include particles-dark(400);
+    height: 3px;
+    width: 3px;
+  }
+
+  .particle-4 {
+    animation: animParticle $time-4 linear infinite;
+    @include particles-dark(500);
+    height: 1px;
+    width: 1px;
+  }
+
+  .particle-4:after {
+    @include particles-dark(400);
+    height: 1px;
+    width: 1px;
+  }
+}
+
+/* Light mode particles */
+:not(.dark) {
+  .particle-1 {
+    animation: animParticle $time-1 linear infinite;
+    @include particles-light(600);
+    height: 2px;
+    width: 2px;
+  }
+
+  .particle-1:after {
+    @include particles-light(500);
+    height: 2px;
+    width: 2px;
+  }
+
+  .particle-2 {
+    animation: animParticle $time-2 linear infinite;
+    @include particles-light(400);
+    height: 2px;
+    width: 2px;
+  }
+
+  .particle-2:after {
+    @include particles-light(300);
+    height: 3px;
+    width: 3px;
+  }
+
+  .particle-3 {
+    animation: animParticle $time-3 linear infinite;
+    @include particles-light(300);
+    height: 3px;
+    width: 3px;
+  }
+
+  .particle-3:after {
+    @include particles-light(400);
+    height: 3px;
+    width: 3px;
+  }
+
+  .particle-4 {
+    animation: animParticle $time-4 linear infinite;
+    @include particles-light(500);
+    height: 1px;
+    width: 1px;
+  }
+
+  .particle-4:after {
+    @include particles-light(400);
+    height: 1px;
+    width: 1px;
+  }
+}
+
+@keyframes animParticle {
+  from {
+    transform: translateY(0px);
+  }
+  to {
+    transform: translateY($spacing * -1);
+  }
+}
