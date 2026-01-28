@@ -127,11 +127,22 @@ router.get('/summary', async (req: AuthRequest, res: Response) => {
 // Get top 10 users by cost
 router.get('/top10', async (req: AuthRequest, res: Response) => {
   try {
-    const { month, year, carrierId: carrierIdParam } = req.query;
+    const { month, year, startDate: startDateStr, endDate: endDateStr, carrierId: carrierIdParam } = req.query;
     const carrierId = carrierIdParam ? parseInt(carrierIdParam as string) : undefined;
 
     let dateFilter: any = {};
-    if (month && year) {
+    // Prefer startDate/endDate if provided, otherwise fall back to month/year
+    if (startDateStr && endDateStr) {
+      const startDate = new Date(startDateStr as string);
+      const endDate = new Date(endDateStr as string);
+      endDate.setHours(23, 59, 59, 999);
+      dateFilter = {
+        callDate: {
+          gte: startDate,
+          lte: endDate,
+        },
+      };
+    } else if (month && year) {
       const startDate = new Date(Number(year), Number(month) - 1, 1);
       const endDate = new Date(Number(year), Number(month), 0);
       dateFilter = {
@@ -460,12 +471,23 @@ router.get('/monthly-costs', async (req: AuthRequest, res: Response) => {
 // Get dashboard stats (averages, totals)
 router.get('/dashboard-stats', async (req: AuthRequest, res: Response) => {
   try {
-    const { month, year, carrierId: carrierIdParam } = req.query;
+    const { month, year, startDate: startDateStr, endDate: endDateStr, carrierId: carrierIdParam } = req.query;
     const carrierId = carrierIdParam ? parseInt(carrierIdParam as string) : undefined;
     const rates = await prisma.rateMatrix.findMany();
 
     let dateFilter: any = {};
-    if (month && year) {
+    // Prefer startDate/endDate if provided, otherwise fall back to month/year
+    if (startDateStr && endDateStr) {
+      const startDate = new Date(startDateStr as string);
+      const endDate = new Date(endDateStr as string);
+      endDate.setHours(23, 59, 59, 999);
+      dateFilter = {
+        callDate: {
+          gte: startDate,
+          lte: endDate,
+        },
+      };
+    } else if (month && year) {
       const startDate = new Date(Number(year), Number(month) - 1, 1);
       const endDate = new Date(Number(year), Number(month), 0, 23, 59, 59);
       dateFilter = {
@@ -523,13 +545,24 @@ router.get('/dashboard-stats', async (req: AuthRequest, res: Response) => {
 // Get top destinations by cost and volume
 router.get('/top-destinations', async (req: AuthRequest, res: Response) => {
   try {
-    const { month, year, limit = '5', carrierId: carrierIdParam } = req.query;
+    const { month, year, startDate: startDateStr, endDate: endDateStr, limit = '5', carrierId: carrierIdParam } = req.query;
     const carrierId = carrierIdParam ? parseInt(carrierIdParam as string) : undefined;
     const rates = await prisma.rateMatrix.findMany();
     const limitNum = parseInt(limit as string);
 
     let dateFilter: any = {};
-    if (month && year) {
+    // Prefer startDate/endDate if provided, otherwise fall back to month/year
+    if (startDateStr && endDateStr) {
+      const startDate = new Date(startDateStr as string);
+      const endDate = new Date(endDateStr as string);
+      endDate.setHours(23, 59, 59, 999);
+      dateFilter = {
+        callDate: {
+          gte: startDate,
+          lte: endDate,
+        },
+      };
+    } else if (month && year) {
       const startDate = new Date(Number(year), Number(month) - 1, 1);
       const endDate = new Date(Number(year), Number(month), 0, 23, 59, 59);
       dateFilter = {

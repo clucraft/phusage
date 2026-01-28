@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   AreaChart, Area,
@@ -43,6 +45,83 @@ interface TopDestination {
   minutes: number;
 }
 
+type DatePreset = 'previousYear' | 'previousMonth' | 'thisMonth' | 'thisYear' | 'last30Days' | 'last90Days' | 'custom';
+
+// Helper to format date as YYYY-MM-DD
+const formatDateForApi = (date: Date): string => {
+  return date.toISOString().split('T')[0];
+};
+
+// Get date range for a preset
+const getPresetDateRange = (preset: DatePreset): { start: Date; end: Date } => {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  switch (preset) {
+    case 'previousYear': {
+      const lastYear = now.getFullYear() - 1;
+      return {
+        start: new Date(lastYear, 0, 1),
+        end: new Date(lastYear, 11, 31),
+      };
+    }
+    case 'previousMonth': {
+      const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastDayPrevMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+      return {
+        start: prevMonth,
+        end: lastDayPrevMonth,
+      };
+    }
+    case 'thisMonth': {
+      const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      return {
+        start: firstOfMonth,
+        end: today,
+      };
+    }
+    case 'thisYear': {
+      const firstOfYear = new Date(now.getFullYear(), 0, 1);
+      return {
+        start: firstOfYear,
+        end: today,
+      };
+    }
+    case 'last30Days': {
+      const thirtyDaysAgo = new Date(today);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      return {
+        start: thirtyDaysAgo,
+        end: today,
+      };
+    }
+    case 'last90Days': {
+      const ninetyDaysAgo = new Date(today);
+      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+      return {
+        start: ninetyDaysAgo,
+        end: today,
+      };
+    }
+    case 'custom':
+    default:
+      return {
+        start: new Date(now.getFullYear(), now.getMonth(), 1),
+        end: today,
+      };
+  }
+};
+
+const presetLabels: Record<DatePreset, string> = {
+  previousYear: 'Previous Year',
+  previousMonth: 'Previous Month',
+  thisMonth: 'This Month',
+  thisYear: 'This Year',
+  last30Days: 'Last 30 Days',
+  last90Days: 'Last 90 Days',
+  custom: 'Custom Range',
+};
+
 export default function Dashboard() {
   const [top10, setTop10] = useState<UserUsage[]>([]);
   const [monthlyCosts, setMonthlyCosts] = useState<MonthlyCost[]>([]);
@@ -50,18 +129,29 @@ export default function Dashboard() {
   const [topDestinations, setTopDestinations] = useState<TopDestination[]>([]);
   const [loading, setLoading] = useState(true);
   const [carriers, setCarriers] = useState<Carrier[]>([]);
-  const [month, setMonth] = useState<number>(() => {
-    const saved = sessionStorage.getItem('dashboard_month');
-    return saved ? parseInt(saved, 10) : new Date().getMonth() + 1;
+
+  // Date range state
+  const [preset, setPreset] = useState<DatePreset>(() => {
+    return (sessionStorage.getItem('dashboard_preset') as DatePreset) || 'thisMonth';
   });
-  const [year, setYear] = useState<number>(() => {
-    const saved = sessionStorage.getItem('dashboard_year');
-    return saved ? parseInt(saved, 10) : new Date().getFullYear();
+  const [startDate, setStartDate] = useState<Date>(() => {
+    const saved = sessionStorage.getItem('dashboard_startDate');
+    if (saved) return new Date(saved);
+    return getPresetDateRange('thisMonth').start;
+  });
+  const [endDate, setEndDate] = useState<Date>(() => {
+    const saved = sessionStorage.getItem('dashboard_endDate');
+    if (saved) return new Date(saved);
+    return getPresetDateRange('thisMonth').end;
   });
   const [carrierId, setCarrierId] = useState<number | undefined>(() => {
     const saved = sessionStorage.getItem('dashboard_carrierId');
     return saved ? parseInt(saved, 10) : undefined;
   });
+
+  // Year for the monthly chart (derived from endDate or current year)
+  const chartYear = endDate.getFullYear();
+
   const { theme } = useTheme();
   const { formatCurrency, convertAmount, currency } = useCurrency();
 
@@ -80,12 +170,16 @@ export default function Dashboard() {
 
   // Persist filters to sessionStorage
   useEffect(() => {
-    sessionStorage.setItem('dashboard_month', String(month));
-  }, [month]);
+    sessionStorage.setItem('dashboard_preset', preset);
+  }, [preset]);
 
   useEffect(() => {
-    sessionStorage.setItem('dashboard_year', String(year));
-  }, [year]);
+    sessionStorage.setItem('dashboard_startDate', startDate.toISOString());
+  }, [startDate]);
+
+  useEffect(() => {
+    sessionStorage.setItem('dashboard_endDate', endDate.toISOString());
+  }, [endDate]);
 
   useEffect(() => {
     if (carrierId !== undefined) {
@@ -94,6 +188,31 @@ export default function Dashboard() {
       sessionStorage.removeItem('dashboard_carrierId');
     }
   }, [carrierId]);
+
+  // Handle preset change
+  const handlePresetChange = (newPreset: DatePreset) => {
+    setPreset(newPreset);
+    if (newPreset !== 'custom') {
+      const { start, end } = getPresetDateRange(newPreset);
+      setStartDate(start);
+      setEndDate(end);
+    }
+  };
+
+  // Handle manual date changes (switches to custom)
+  const handleStartDateChange = (date: Date | null) => {
+    if (date) {
+      setStartDate(date);
+      setPreset('custom');
+    }
+  };
+
+  const handleEndDateChange = (date: Date | null) => {
+    if (date) {
+      setEndDate(date);
+      setPreset('custom');
+    }
+  };
 
   // Convert monthly costs for chart
   const convertedMonthlyCosts = useMemo(() => {
@@ -105,19 +224,24 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchData();
-  }, [month, year, carrierId]);
+  }, [startDate, endDate, carrierId]);
 
   useEffect(() => {
     fetchYearlyData();
-  }, [year, carrierId]);
+  }, [chartYear, carrierId]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
+      const params = {
+        startDate: formatDateForApi(startDate),
+        endDate: formatDateForApi(endDate),
+        carrierId,
+      };
       const [top10Res, statsRes, destRes] = await Promise.all([
-        usageApi.getTop10(month, year, carrierId),
-        usageApi.getDashboardStats(month, year, carrierId),
-        usageApi.getTopDestinations(month, year, 5, carrierId),
+        usageApi.getTop10(params),
+        usageApi.getDashboardStats(params),
+        usageApi.getTopDestinations({ ...params, limit: 5 }),
       ]);
       setTop10(top10Res.data);
       setStats(statsRes.data);
@@ -131,7 +255,7 @@ export default function Dashboard() {
 
   const fetchYearlyData = async () => {
     try {
-      const monthlyRes = await usageApi.getMonthlyCosts(year, carrierId);
+      const monthlyRes = await usageApi.getMonthlyCosts(chartYear, carrierId);
       setMonthlyCosts(monthlyRes.data);
     } catch (error) {
       console.error('Failed to fetch monthly costs:', error);
@@ -140,6 +264,9 @@ export default function Dashboard() {
 
   const downloadReport = async (format: 'csv' | 'pdf') => {
     try {
+      // For export, use month/year from the current date range for file naming
+      const month = endDate.getMonth() + 1;
+      const year = endDate.getFullYear();
       const response = format === 'csv'
         ? await exportApi.downloadCsv(month, year, carrierId)
         : await exportApi.downloadPdf(month, year, carrierId);
@@ -147,7 +274,8 @@ export default function Dashboard() {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `usage-report-${year}-${month}.${format}`);
+      const dateStr = `${formatDateForApi(startDate)}_to_${formatDateForApi(endDate)}`;
+      link.setAttribute('download', `usage-report-${dateStr}.${format}`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -155,11 +283,6 @@ export default function Dashboard() {
       console.error('Failed to download report:', error);
     }
   };
-
-  const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
 
   const chartColors = {
     bar: theme === 'dark' ? '#818cf8' : '#4f46e5',
@@ -172,11 +295,16 @@ export default function Dashboard() {
   // Find max cost for progress bar calculation
   const maxCost = topDestinations.length > 0 ? Math.max(...topDestinations.map(d => d.cost)) : 0;
 
+  // Format date range for display
+  const formatDateDisplay = (date: Date) => {
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap justify-between items-center gap-4">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3">
           {carriers.length > 0 && (
             <select
               value={carrierId || ''}
@@ -189,24 +317,44 @@ export default function Dashboard() {
               ))}
             </select>
           )}
+
+          {/* Date Range Preset Dropdown */}
           <select
-            value={month}
-            onChange={(e) => setMonth(Number(e.target.value))}
+            value={preset}
+            onChange={(e) => handlePresetChange(e.target.value as DatePreset)}
             className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           >
-            {months.map((m, i) => (
-              <option key={i} value={i + 1}>{m}</option>
+            {Object.entries(presetLabels).map(([key, label]) => (
+              <option key={key} value={key}>{label}</option>
             ))}
           </select>
-          <select
-            value={year}
-            onChange={(e) => setYear(Number(e.target.value))}
-            className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          >
-            {[2024, 2025, 2026].map((y) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
+
+          {/* Date Pickers */}
+          <div className="flex items-center gap-2">
+            <DatePicker
+              selected={startDate}
+              onChange={handleStartDateChange}
+              selectsStart
+              startDate={startDate}
+              endDate={endDate}
+              maxDate={endDate}
+              dateFormat="MMM d, yyyy"
+              className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-32"
+            />
+            <span className="text-gray-500 dark:text-gray-400">to</span>
+            <DatePicker
+              selected={endDate}
+              onChange={handleEndDateChange}
+              selectsEnd
+              startDate={startDate}
+              endDate={endDate}
+              minDate={startDate}
+              maxDate={new Date()}
+              dateFormat="MMM d, yyyy"
+              className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-32"
+            />
+          </div>
+
           <button
             onClick={() => downloadReport('csv')}
             className="bg-green-600 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700 transition-colors"
@@ -220,6 +368,11 @@ export default function Dashboard() {
             Export PDF
           </button>
         </div>
+      </div>
+
+      {/* Date Range Display */}
+      <div className="text-sm text-gray-500 dark:text-gray-400">
+        Showing data from <span className="font-medium text-gray-700 dark:text-gray-300">{formatDateDisplay(startDate)}</span> to <span className="font-medium text-gray-700 dark:text-gray-300">{formatDateDisplay(endDate)}</span>
       </div>
 
       {/* Summary Cards - Row 1 */}
@@ -269,7 +422,7 @@ export default function Dashboard() {
       {/* Monthly Costs Chart */}
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          {year} Monthly Costs
+          {chartYear} Monthly Costs Overview
         </h2>
         {convertedMonthlyCosts.length === 0 ? (
           <div className="h-72 flex items-center justify-center text-gray-500 dark:text-gray-400">

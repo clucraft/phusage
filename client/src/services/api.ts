@@ -35,18 +35,18 @@ export const authApi = {
 export const usageApi = {
   getSummary: (month?: number, year?: number, carrierId?: number) =>
     api.get('/usage/summary', { params: { month, year, carrierId } }),
-  getTop10: (month?: number, year?: number, carrierId?: number) =>
-    api.get('/usage/top10', { params: { month, year, carrierId } }),
+  getTop10: (params: { startDate?: string; endDate?: string; month?: number; year?: number; carrierId?: number }) =>
+    api.get('/usage/top10', { params }),
   searchUser: (email: string, startDate?: string, endDate?: string, carrierId?: number) =>
     api.get(`/usage/user/${encodeURIComponent(email)}`, { params: { startDate, endDate, carrierId } }),
   getUserTrend: (email: string, startDate?: string, endDate?: string, carrierId?: number) =>
     api.get(`/usage/user/${encodeURIComponent(email)}/trend`, { params: { startDate, endDate, carrierId } }),
   getMonthlyCosts: (year?: number, carrierId?: number) =>
     api.get('/usage/monthly-costs', { params: { year, carrierId } }),
-  getDashboardStats: (month?: number, year?: number, carrierId?: number) =>
-    api.get('/usage/dashboard-stats', { params: { month, year, carrierId } }),
-  getTopDestinations: (month?: number, year?: number, limit?: number, carrierId?: number) =>
-    api.get('/usage/top-destinations', { params: { month, year, limit, carrierId } }),
+  getDashboardStats: (params: { startDate?: string; endDate?: string; month?: number; year?: number; carrierId?: number }) =>
+    api.get('/usage/dashboard-stats', { params }),
+  getTopDestinations: (params: { startDate?: string; endDate?: string; month?: number; year?: number; limit?: number; carrierId?: number }) =>
+    api.get('/usage/top-destinations', { params }),
   getLocations: (month?: number, year?: number, carrierId?: number) =>
     api.get('/usage/locations', { params: { month, year, carrierId } }),
 };
