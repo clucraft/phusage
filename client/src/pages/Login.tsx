@@ -45,7 +45,7 @@ export default function Login({ onLogin }: LoginProps) {
     setLoading(true);
 
     try {
-      if (isRegister) {
+      if (isRegister || isFirstUser) {
         const response = await authApi.register(email, password, name);
         setIsRegister(false);
         setError('');
